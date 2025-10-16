@@ -5,6 +5,13 @@ import torch.distributed as dist
 from ..modules.attention import flash_attention
 from .util import all_to_all
 
+# Import lite_attention for optimized attention
+try:
+    from lite_attention import LiteAttention
+    LITE_ATTENTION_AVAILABLE = True
+except ImportError:
+    LITE_ATTENTION_AVAILABLE = False
+
 
 def distributed_attention(
         q,
@@ -12,6 +19,7 @@ def distributed_attention(
         v,
         seq_lens,
         window_size=(-1, -1),
+        lite_attention=None,
 ):
     """
     Performs distributed attention based on DeepSpeed Ulysses attention mechanism.
@@ -23,6 +31,7 @@ def distributed_attention(
         v:           [B, Lk // p, Nk, C2]. Nq must be divisible by Nk.
         seq_lens:    [B], length of each sequence in batch
         window_size: (left right). If not (-1, -1), apply sliding window local attention.
+        lite_attention: LiteAttention instance (optional)
     """
     if not dist.is_initialized():
         raise ValueError("distributed group should be initialized.")
@@ -33,14 +42,22 @@ def distributed_attention(
     k = all_to_all(k, scatter_dim=2, gather_dim=1)
     v = all_to_all(v, scatter_dim=2, gather_dim=1)
 
-    # apply attention
-    x = flash_attention(
-        q,
-        k,
-        v,
-        k_lens=seq_lens,
-        window_size=window_size,
-    )
+    # Use LiteAttention if available, otherwise fall back to flash_attention
+    if lite_attention is not None and LITE_ATTENTION_AVAILABLE:
+        # LiteAttention expects (batch, seq_len, heads, head_dim) format
+        # and returns (batch, seq_len, heads * head_dim) format
+        # Convert to bfloat16 for memory efficiency
+        x = lite_attention(q.bfloat16(), k.bfloat16(), v.bfloat16())
+        # Convert result back to float32 to maintain consistency with model expectations
+        x = x.float()
+    else:
+        x = flash_attention(
+            q,
+            k,
+            v,
+            k_lens=seq_lens,
+            window_size=window_size,
+        )
 
     # scatter q/k/v sequence
     x = all_to_all(x, scatter_dim=1, gather_dim=2)

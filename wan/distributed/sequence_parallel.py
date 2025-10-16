@@ -168,6 +168,7 @@ def sp_attn_forward(self, x, seq_lens, grid_sizes, freqs, dtype=torch.bfloat16):
         half(v),
         seq_lens,
         window_size=self.window_size,
+        lite_attention=getattr(self, 'lite_attention', None),
     )
 
     # output

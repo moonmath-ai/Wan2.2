@@ -8,6 +8,13 @@ from diffusers.models.modeling_utils import ModelMixin
 
 from .attention import flash_attention
 
+# Import lite_attention for optimized attention
+try:
+    from lite_attention import LiteAttention
+    LITE_ATTENTION_AVAILABLE = True
+except ImportError:
+    LITE_ATTENTION_AVAILABLE = False
+
 __all__ = ['WanModel']
 
 
@@ -142,12 +149,28 @@ class WanSelfAttention(nn.Module):
 
         q, k, v = qkv_fn(x)
 
-        x = flash_attention(
-            q=rope_apply(q, grid_sizes, freqs),
-            k=rope_apply(k, grid_sizes, freqs),
-            v=v,
-            k_lens=seq_lens,
-            window_size=self.window_size)
+        # Apply RoPE to q and k
+        q_rope = rope_apply(q, grid_sizes, freqs)
+        k_rope = rope_apply(k, grid_sizes, freqs)
+
+        # Use LiteAttention if available, otherwise fall back to flash_attention
+        if self.lite_attention is not None:
+            # LiteAttention expects (batch, seq_len, heads, head_dim) format
+            # and returns (batch, seq_len, heads * head_dim) format
+            # Convert to bfloat16 for memory efficiency
+            q_rope = q_rope.bfloat16()
+            k_rope = k_rope.bfloat16()
+            v = v.bfloat16()
+            x = self.lite_attention(q_rope, k_rope, v)
+            # Convert result back to float32 to maintain consistency with model expectations
+            x = x.float()
+        else:
+            x = flash_attention(
+                q=q_rope,
+                k=k_rope,
+                v=v,
+                k_lens=seq_lens,
+                window_size=self.window_size)
 
         # output
         x = x.flatten(2)
