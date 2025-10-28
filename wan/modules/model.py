@@ -8,13 +8,6 @@ from diffusers.models.modeling_utils import ModelMixin
 
 from .attention import flash_attention
 
-# Import lite_attention for optimized attention
-try:
-    from lite_attention import LiteAttention
-    LITE_ATTENTION_AVAILABLE = True
-except ImportError:
-    LITE_ATTENTION_AVAILABLE = False
-
 __all__ = ['WanModel']
 
 

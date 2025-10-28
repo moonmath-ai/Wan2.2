@@ -183,6 +183,33 @@ class WanI2V:
             if not self.init_on_cpu:
                 model.to(self.device)
 
+                # Apply torch.compile after distributed setup
+        # Based on successful LTX-Video implementation with sequence parallel
+        logging.info(f"Compiling model with mode='default'")
+        
+        # Configure torch._dynamo options for better distributed support
+        try:
+            dynamo_config = torch._dynamo.config
+            if hasattr(dynamo_config, "recompile_limit"):
+                dynamo_config.recompile_limit = 200
+            if hasattr(dynamo_config, "capture_scalar_outputs"):
+                dynamo_config.capture_scalar_outputs = True
+        except Exception:
+            pass
+        
+        try:
+            # Use the same approach as LTX-Video: compile with dynamic=False for distributed
+            model = torch.compile(
+                model, 
+                mode="default", 
+                dynamic=False,  # Use static shapes for better distributed compatibility
+                fullgraph=False  # Allow graph breaks for distributed operations
+            )
+            logging.info("Model compilation successful")
+        except Exception as e:
+            logging.warning(f"Model compilation failed: {e}. Continuing without compilation.")
+            pass
+
         return model
 
     def _prepare_model_for_timestep(self, t, boundary, offload_model):

@@ -1,6 +1,7 @@
 # Copyright 2024-2025 The Alibaba Wan Team Authors. All rights reserved.
 import argparse
 import logging
+import time
 import os
 import sys
 import warnings
@@ -444,9 +445,12 @@ def generate(args):
             use_sp=(args.ulysses_size > 1),
             t5_cpu=args.t5_cpu,
             convert_model_dtype=args.convert_model_dtype,
+            la1_threshold=args.la1_threshold,
+
         )
 
-        logging.info(f"Generating video ...")
+        logging.info(f"Generating video and compiling model...")
+        start_time = time.perf_counter()
         video = wan_ti2v.generate(
             args.prompt,
             img=img,
@@ -459,6 +463,25 @@ def generate(args):
             guide_scale=args.sample_guide_scale,
             seed=args.base_seed,
             offload_model=args.offload_model)
+        end_time = time.perf_counter()
+        logging.info(f"Time taken for ti2v generation: {(end_time - start_time):.3f} seconds")
+        
+        logging.info(f"Generating video with compiled model ...")
+        start_time = time.perf_counter()
+        video = wan_ti2v.generate(
+            args.prompt,
+            img=img,
+            size=SIZE_CONFIGS[args.size],
+            max_area=MAX_AREA_CONFIGS[args.size],
+            frame_num=args.frame_num,
+            shift=args.sample_shift,
+            sample_solver=args.sample_solver,
+            sampling_steps=args.sample_steps,
+            guide_scale=args.sample_guide_scale,
+            seed=args.base_seed,
+            offload_model=args.offload_model)
+        end_time = time.perf_counter()
+        logging.info(f"Time taken for ti2v generation: {(end_time - start_time):.3f} seconds")
     elif "animate" in args.task:
         logging.info("Creating Wan-Animate pipeline.")
         wan_animate = wan.WanAnimate(
@@ -534,7 +557,8 @@ def generate(args):
             convert_model_dtype=args.convert_model_dtype,
             la1_threshold=args.la1_threshold,
         )
-        logging.info("Generating video ...")
+        logging.info("Generating video and compiling model...")
+        start_time = time.perf_counter()
         video = wan_i2v.generate(
             args.prompt,
             img,
@@ -546,7 +570,24 @@ def generate(args):
             guide_scale=args.sample_guide_scale,
             seed=args.base_seed,
             offload_model=args.offload_model)
+        end_time = time.perf_counter()
+        logging.info(f"Time taken for generation: {(end_time - start_time):.3f} seconds")
 
+        logging.info("Generating video with compiled model ...")
+        start_time = time.perf_counter()
+        video = wan_i2v.generate(
+            args.prompt,
+            img,
+            max_area=MAX_AREA_CONFIGS[args.size],
+            frame_num=args.frame_num,
+            shift=args.sample_shift,
+            sample_solver=args.sample_solver,
+            sampling_steps=args.sample_steps,
+            guide_scale=args.sample_guide_scale,
+            seed=args.base_seed,
+            offload_model=args.offload_model)
+        end_time = time.perf_counter()
+        logging.info(f"Time taken for generation: {(end_time - start_time):.3f} seconds")
     if rank == 0:
         if args.save_file is None:
             formatted_time = datetime.now().strftime("%Y%m%d_%H%M%S")

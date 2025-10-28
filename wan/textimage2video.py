@@ -1,4 +1,5 @@
 # Copyright 2024-2025 The Alibaba Wan Team Authors. All rights reserved.
+import time
 import gc
 import logging
 import math
@@ -30,6 +31,12 @@ from .utils.fm_solvers import (
 from .utils.fm_solvers_unipc import FlowUniPCMultistepScheduler
 from .utils.utils import best_output_size, masks_like
 
+# Import lite_attention for optimized attention
+try:
+    from lite_attention import LiteAttention
+    LITE_ATTENTION_AVAILABLE = True
+except ImportError:
+    LITE_ATTENTION_AVAILABLE = False
 
 class WanTI2V:
 
@@ -45,6 +52,8 @@ class WanTI2V:
         t5_cpu=False,
         init_on_cpu=True,
         convert_model_dtype=False,
+        la1_threshold=-10.0,
+        compile_mode="default",
     ):
         r"""
         Initializes the Wan text-to-video generation model components.
@@ -71,12 +80,15 @@ class WanTI2V:
             convert_model_dtype (`bool`, *optional*, defaults to False):
                 Convert DiT model parameters dtype to 'config.param_dtype'.
                 Only works without FSDP.
+            compile_mode (`str`, *optional*, defaults to "default"):
+                Compilation mode for torch.compile. Options: "default", "reduce-overhead", "max-autotune".
         """
         self.device = torch.device(f"cuda:{device_id}")
         self.config = config
         self.rank = rank
         self.t5_cpu = t5_cpu
         self.init_on_cpu = init_on_cpu
+        self.compile_mode = compile_mode
 
         self.num_train_timesteps = config.num_train_timesteps
         self.param_dtype = config.param_dtype
@@ -106,7 +118,9 @@ class WanTI2V:
             use_sp=use_sp,
             dit_fsdp=dit_fsdp,
             shard_fn=shard_fn,
-            convert_model_dtype=convert_model_dtype)
+            convert_model_dtype=convert_model_dtype,
+            la1_threshold=la1_threshold,
+            compile_mode=compile_mode)
 
         if use_sp:
             self.sp_size = get_world_size()
@@ -116,7 +130,8 @@ class WanTI2V:
         self.sample_neg_prompt = config.sample_neg_prompt
 
     def _configure_model(self, model, use_sp, dit_fsdp, shard_fn,
-                         convert_model_dtype):
+                         convert_model_dtype, la1_threshold=-10.0,
+                         compile_mode="default"):
         """
         Configures a model object. This includes setting evaluation modes,
         applying distributed parallel strategy, and handling device placement.
@@ -133,18 +148,31 @@ class WanTI2V:
             convert_model_dtype (`bool`):
                 Convert DiT model parameters dtype to 'config.param_dtype'.
                 Only works without FSDP.
-
+            la1_threshold (`float`):
+                The threshold value for LA1.
+            compile_mode (`str`):
+                Compilation mode for torch.compile.
         Returns:
             torch.nn.Module:
                 The configured model.
         """
         model.eval().requires_grad_(False)
 
-        if use_sp:
-            for block in model.blocks:
+        if LITE_ATTENTION_AVAILABLE:
+            logging.info("Using LiteAttention")
+        else:
+            logging.info("LiteAttention is not available")
+
+        for block in model.blocks:
+            if LITE_ATTENTION_AVAILABLE:
+                block.self_attn.lite_attention = LiteAttention(enable_skipping=True, threshold=la1_threshold)
+            else:
+                block.self_attn.lite_attention = None
+
+            if use_sp:
                 block.self_attn.forward = types.MethodType(
                     sp_attn_forward, block.self_attn)
-            model.forward = types.MethodType(sp_dit_forward, model)
+                model.forward = types.MethodType(sp_dit_forward, model)
 
         if dist.is_initialized():
             dist.barrier()
@@ -156,6 +184,33 @@ class WanTI2V:
                 model.to(self.param_dtype)
             if not self.init_on_cpu:
                 model.to(self.device)
+
+        # Apply torch.compile after distributed setup
+        # Based on successful LTX-Video implementation with sequence parallel
+        logging.info(f"Compiling model with mode='{compile_mode}'")
+        
+        # Configure torch._dynamo options for better distributed support
+        try:
+            dynamo_config = torch._dynamo.config
+            if hasattr(dynamo_config, "recompile_limit"):
+                dynamo_config.recompile_limit = 200
+            if hasattr(dynamo_config, "capture_scalar_outputs"):
+                dynamo_config.capture_scalar_outputs = True
+        except Exception:
+            pass
+        
+        try:
+            # Use the same approach as LTX-Video: compile with dynamic=False for distributed
+            model = torch.compile(
+                model, 
+                mode=compile_mode, 
+                dynamic=False,  # Use static shapes for better distributed compatibility
+                fullgraph=False  # Allow graph breaks for distributed operations
+            )
+            logging.info("Model compilation successful")
+        except Exception as e:
+            logging.warning(f"Model compilation failed: {e}. Continuing without compilation.")
+            pass
 
         return model
 
@@ -459,6 +514,7 @@ class WanTI2V:
                 - W: Frame width (from max_area)
         """
         # preprocess
+        preprocess_start_time = time.perf_counter()
         ih, iw = img.height, img.width
         dh, dw = self.patch_size[1] * self.vae_stride[1], self.patch_size[
             2] * self.vae_stride[2]
@@ -467,15 +523,23 @@ class WanTI2V:
         scale = max(ow / iw, oh / ih)
         img = img.resize((round(iw * scale), round(ih * scale)), Image.LANCZOS)
 
+        preprocess_end_time = time.perf_counter()
+        logging.info(f"Preprocess time: {(preprocess_end_time - preprocess_start_time):.3f} seconds")
         # center-crop
+        center_crop_start_time = time.perf_counter()
         x1 = (img.width - ow) // 2
         y1 = (img.height - oh) // 2
         img = img.crop((x1, y1, x1 + ow, y1 + oh))
         assert img.width == ow and img.height == oh
-
+        center_crop_end_time = time.perf_counter()
+        logging.info(f"Center crop time: {(center_crop_end_time - center_crop_start_time):.3f} seconds")
         # to tensor
+        to_tensor_start_time = time.perf_counter()
         img = TF.to_tensor(img).sub_(0.5).div_(0.5).to(self.device).unsqueeze(1)
+        to_tensor_end_time = time.perf_counter()
+        logging.info(f"To tensor time: {(to_tensor_end_time - to_tensor_start_time):.3f} seconds")
 
+        noise_start_time = time.perf_counter()
         F = frame_num
         seq_len = ((F - 1) // self.vae_stride[0] + 1) * (
             oh // self.vae_stride[1]) * (ow // self.vae_stride[2]) // (
@@ -492,10 +556,13 @@ class WanTI2V:
             dtype=torch.float32,
             generator=seed_g,
             device=self.device)
-
+        noise_end_time = time.perf_counter()
+        logging.info(f"Noise time: {(noise_end_time - noise_start_time):.3f} seconds")
         if n_prompt == "":
             n_prompt = self.sample_neg_prompt
-
+        
+        
+        text_encoder_start_time = time.perf_counter()
         # preprocess
         if not self.t5_cpu:
             self.text_encoder.model.to(self.device)
@@ -508,9 +575,14 @@ class WanTI2V:
             context_null = self.text_encoder([n_prompt], torch.device('cpu'))
             context = [t.to(self.device) for t in context]
             context_null = [t.to(self.device) for t in context_null]
-
+        text_encoder_end_time = time.perf_counter()
+        logging.info(f"Text encoder time: {(text_encoder_end_time - text_encoder_start_time):.3f} seconds")
+        
+        vae_encode_start_time = time.perf_counter()
         z = self.vae.encode([img])
-
+        vae_encode_end_time = time.perf_counter()
+        logging.info(f"VAE encode time: {(vae_encode_end_time - vae_encode_start_time):.3f} seconds")
+        
         @contextmanager
         def noop_no_sync():
             yield
@@ -523,7 +595,7 @@ class WanTI2V:
                 torch.no_grad(),
                 no_sync(),
         ):
-
+            sample_scheduler_start_time = time.perf_counter()
             if sample_solver == 'unipc':
                 sample_scheduler = FlowUniPCMultistepScheduler(
                     num_train_timesteps=self.num_train_timesteps,
@@ -563,7 +635,11 @@ class WanTI2V:
             if offload_model or self.init_on_cpu:
                 self.model.to(self.device)
                 torch.cuda.empty_cache()
-
+                
+            sample_scheduler_end_time = time.perf_counter()
+            logging.info(f"Sample scheduler time: {(sample_scheduler_end_time - sample_scheduler_start_time):.3f} seconds")
+            
+            timesteps_start_time = time.perf_counter()
             for _, t in enumerate(tqdm(timesteps)):
                 latent_model_input = [latent.to(self.device)]
                 timestep = [t]
@@ -599,6 +675,8 @@ class WanTI2V:
 
                 x0 = [latent]
                 del latent_model_input, timestep
+            timesteps_end_time = time.perf_counter()
+            logging.info(f"Timesteps time: {(timesteps_end_time - timesteps_start_time):.3f} seconds")
 
             if offload_model:
                 self.model.cpu()
@@ -606,7 +684,10 @@ class WanTI2V:
                 torch.cuda.empty_cache()
 
             if self.rank == 0:
+                vae_decode_start_time = time.perf_counter()
                 videos = self.vae.decode(x0)
+                vae_decode_end_time = time.perf_counter()
+                logging.info(f"VAE decode time: {(vae_decode_end_time - vae_decode_start_time):.3f} seconds")
 
         del noise, latent, x0
         del sample_scheduler
