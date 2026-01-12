@@ -42,6 +42,7 @@ class WanT2V:
         t5_cpu=False,
         init_on_cpu=True,
         convert_model_dtype=False,
+        lite_attention_threshold=-10.0,
     ):
         r"""
         Initializes the Wan text-to-video generation model components.
@@ -68,6 +69,8 @@ class WanT2V:
             convert_model_dtype (`bool`, *optional*, defaults to False):
                 Convert DiT model parameters dtype to 'config.param_dtype'.
                 Only works without FSDP.
+            lite_attention_threshold (`float`):
+                The threshold value for LiteAttention.
         """
         self.device = torch.device(f"cuda:{device_id}")
         self.config = config
@@ -105,7 +108,8 @@ class WanT2V:
             use_sp=use_sp,
             dit_fsdp=dit_fsdp,
             shard_fn=shard_fn,
-            convert_model_dtype=convert_model_dtype)
+            convert_model_dtype=convert_model_dtype,
+            lite_attention_threshold=lite_attention_threshold)
 
         self.high_noise_model = WanModel.from_pretrained(
             checkpoint_dir, subfolder=config.high_noise_checkpoint)
@@ -114,7 +118,8 @@ class WanT2V:
             use_sp=use_sp,
             dit_fsdp=dit_fsdp,
             shard_fn=shard_fn,
-            convert_model_dtype=convert_model_dtype)
+            convert_model_dtype=convert_model_dtype,
+            lite_attention_threshold=lite_attention_threshold)
         if use_sp:
             self.sp_size = get_world_size()
         else:
@@ -123,7 +128,7 @@ class WanT2V:
         self.sample_neg_prompt = config.sample_neg_prompt
 
     def _configure_model(self, model, use_sp, dit_fsdp, shard_fn,
-                         convert_model_dtype):
+                         convert_model_dtype, lite_attention_threshold=-10.0):
         """
         Configures a model object. This includes setting evaluation modes,
         applying distributed parallel strategy, and handling device placement.
@@ -140,12 +145,17 @@ class WanT2V:
             convert_model_dtype (`bool`):
                 Convert DiT model parameters dtype to 'config.param_dtype'.
                 Only works without FSDP.
-
+            lite_attention_threshold (`float`):
+                The threshold value for LiteAttention.
         Returns:
             torch.nn.Module:
                 The configured model.
         """
         model.eval().requires_grad_(False)
+
+        # Initialize LiteAttention for all self attention blocks
+        model.init_lite_attention(
+            enable=True, threshold=lite_attention_threshold)
 
         if use_sp:
             for block in model.blocks:
