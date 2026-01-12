@@ -294,6 +294,13 @@ def _parse_args():
         default=80,
         help="Number of frames per clip, 48 or 80 or others (must be multiple of 4) for 14B s2v"
     )
+    # LiteAttention
+    parser.add_argument(
+        "--lite_attention_threshold",
+        type=float,
+        default=-10.0,
+        help="The threshold value for LiteAttention"
+    )
     args = parser.parse_args()
     _validate_args(args)
 
@@ -412,6 +419,7 @@ def generate(args):
             use_sp=(args.ulysses_size > 1),
             t5_cpu=args.t5_cpu,
             convert_model_dtype=args.convert_model_dtype,
+            lite_attention_threshold=args.lite_attention_threshold,
         )
 
         logging.info(f"Generating video ...")
@@ -437,6 +445,7 @@ def generate(args):
             use_sp=(args.ulysses_size > 1),
             t5_cpu=args.t5_cpu,
             convert_model_dtype=args.convert_model_dtype,
+            lite_attention_threshold=args.lite_attention_threshold,
         )
 
         logging.info(f"Generating video ...")
@@ -491,6 +500,7 @@ def generate(args):
             use_sp=(args.ulysses_size > 1),
             t5_cpu=args.t5_cpu,
             convert_model_dtype=args.convert_model_dtype,
+            lite_attention_threshold=args.lite_attention_threshold,
         )
         logging.info(f"Generating video ...")
         video = wan_s2v.generate(
@@ -525,6 +535,7 @@ def generate(args):
             use_sp=(args.ulysses_size > 1),
             t5_cpu=args.t5_cpu,
             convert_model_dtype=args.convert_model_dtype,
+            lite_attention_threshold=args.lite_attention_threshold,
         )
         logging.info("Generating video ...")
         video = wan_i2v.generate(
