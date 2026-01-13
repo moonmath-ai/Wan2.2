@@ -162,10 +162,6 @@ class WanI2V:
         """
         model.eval().requires_grad_(False)
 
-        # Initialize LiteAttention for all self attention blocks
-        model.init_lite_attention(
-            enable=True, threshold=lite_attention_threshold)
-
         for block in model.blocks:
             if LITE_ATTENTION_AVAILABLE:
                 block.self_attn.lite_attention = LiteAttention(enable_skipping=True, threshold=lite_attention_threshold)
