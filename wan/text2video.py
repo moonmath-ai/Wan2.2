@@ -153,10 +153,6 @@ class WanT2V:
         """
         model.eval().requires_grad_(False)
 
-        # Initialize LiteAttention for all self attention blocks
-        model.init_lite_attention(
-            enable=True, threshold=lite_attention_threshold)
-
         if use_sp:
             for block in model.blocks:
                 block.self_attn.forward = types.MethodType(
