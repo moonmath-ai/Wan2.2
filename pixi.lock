@@ -5826,7 +5826,7 @@ packages:
 - pypi: ./
   name: wan
   version: 2.2.0
-  sha256: ade6060b758b2b65e4c3ed9e97ab6d298f144ec291576ecd22e44923b22a9f0d
+  sha256: 6a6321b7d9f5abd1eafe7c2797be1a86d50f217c5c8ddf1768536a0677ac2f86
   requires_dist:
   - torch>=2.9,<2.10
   - torchvision>=0.19.0
