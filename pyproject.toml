@@ -15,29 +15,57 @@ requires-python = ">=3.10,<4.0"
 dependencies = [
     "torch>=2.4.0",
     "torchvision>=0.19.0",
+    "torchaudio",
     "opencv-python>=4.9.0.80",
     "diffusers>=0.31.0",
-    "transformers>=4.49.0",
+    "transformers>=4.49.0,<=4.51.3",
     "tokenizers>=0.20.3",
     "accelerate>=1.1.1",
     "tqdm",
-    "imageio",
+    "imageio[ffmpeg]",
     "easydict",
     "ftfy",
     "dashscope",
     "imageio-ffmpeg",
-    "flash_attn",
-    "numpy>=1.23.5,<2"
+    #"flash_attn",
+    "numpy>=1.23.5,<2",
 ]
 
 [project.optional-dependencies]
-dev = [
-    "pytest",
-    "black",
-    "flake8",
-    "isort",
-    "mypy",
-    "huggingface-hub[cli]"
+s2v = [
+    "openai-whisper",
+    "HyperPyYAML",
+    "onnxruntime",
+    "inflect",
+    "wetext",
+    "omegaconf",
+    "conformer",
+    "hydra-core",
+    "lightning",
+    "rich",
+    "gdown",
+    "matplotlib",
+    "wget",
+    "pyarrow",
+    "pyworld",
+    "librosa",
+    "decord",
+    "modelscope",
+    "GitPython",
+]
+animate = [
+    "decord",
+    "peft",
+    "onnxruntime",
+    "pandas",
+    "matplotlib",
+    "sam-2",
+    "loguru",
+    "sentencepiece",
+]
+lite = [
+    "ninja",
+    "packaging",
 ]
 
 [project.urls]
@@ -63,4 +91,13 @@ profile = "black"
 [tool.mypy]
 strict = true
 
+[dependency-groups]
+dev = [
+    "pytest",
+    "black",
+    "flake8",
+    "isort",
+    "mypy",
+    "huggingface-hub[cli]",
+]
 
