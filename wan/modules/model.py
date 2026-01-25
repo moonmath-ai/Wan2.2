@@ -122,6 +122,8 @@ class WanSelfAttention(nn.Module):
         self.qk_norm = qk_norm
         self.eps = eps
 
+        self.lite_attention = LiteAttention if LITE_ATTENTION_AVAILABLE else None
+
         # layers
         self.q = nn.Linear(dim, dim)
         self.k = nn.Linear(dim, dim)
