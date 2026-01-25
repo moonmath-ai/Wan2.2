@@ -118,6 +118,8 @@ pip = "*"
 [tool.pixi.pypi-dependencies]
 wan = { path = ".", editable = true }
 sam-2 = { git = "https://github.com/facebookresearch/sam2.git", rev = "0e78a118995e66bb27d78518c4bd9a3e95b4e266" }
+# Prebuilt wheel for torch 2.9.x + CUDA 12 + cxx11abi=True + Python 3.12
+flash-attn = { url = "https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3%2Bcu12torch2.9cxx11abiTRUE-cp312-cp312-linux_x86_64.whl" }
 
 [tool.pixi.pypi-options]
 no-build-isolation = ["lite-attention"]
@@ -127,7 +129,6 @@ default = { features = ["animate", "dev", "lite", "s2v"], solve-group = "default
 
 [tool.pixi.tasks]
 install-lite-attention = "git -C ./LiteAttention clean -Xf  && pip install --no-build-isolation -e ./LiteAttention/hopper"
-install-flash-attn = "pip install https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3%2Bcu12torch2.9cxx11abiTRUE-cp312-cp312-linux_x86_64.whl"
 
 [tool.pixi.activation]
 env = { CUDA_HOME = "/usr/local/cuda-12.8", LD_LIBRARY_PATH = "/usr/local/cuda/lib64:$LD_LIBRARY_PATH" }

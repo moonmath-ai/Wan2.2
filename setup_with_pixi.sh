@@ -13,10 +13,9 @@ else
     echo "WARNING: ninja is not working correctly, build may be slow"
 fi
 
-echo "Installing flash-attn ..."
-pixi run install-flash-attn
+echo "Verifying flash-attn..."
 if ! pixi run python -c "import flash_attn"; then
-    echo "ERROR: flash-attn installation failed"
+    echo "ERROR: flash-attn not working"
     exit 1
 fi
 
