@@ -13,7 +13,8 @@ license = { file = "LICENSE.txt" }
 readme = "README.md"
 requires-python = ">=3.10,<4.0"
 dependencies = [
-    "torch>=2.4.0",
+    # torch pinned to 2.9.x - flash-attn 2.8.3 prebuilt wheels only available up to torch 2.9
+    "torch>=2.9,<2.10",
     "torchvision>=0.19.0",
     "torchaudio",
     "opencv-python>=4.9.0.80",
@@ -27,7 +28,7 @@ dependencies = [
     "ftfy",
     "dashscope",
     "imageio-ffmpeg",
-    "flash_attn",
+    # flash_attn installed separately via pixi task (needs prebuilt wheel for torch version match)
     "numpy>=1.23.5,<2",
 ]
 
@@ -110,7 +111,6 @@ platforms = ["linux-64"]
 python = "3.12.*"
 cuda-toolkit = "*"
 cxx-compiler = "*"
-pytorch-cuda = { version = ">=2.2", channel = "pytorch" }
 packaging = "*"
 ninja = "*"
 pip = "*"
@@ -120,13 +120,14 @@ wan = { path = ".", editable = true }
 sam-2 = { git = "https://github.com/facebookresearch/sam2.git", rev = "0e78a118995e66bb27d78518c4bd9a3e95b4e266" }
 
 [tool.pixi.pypi-options]
-no-build-isolation = ["flash-attn", "lite-attention"]
+no-build-isolation = ["lite-attention"]
 
 [tool.pixi.environments]
 default = { features = ["animate", "dev", "lite", "s2v"], solve-group = "default" }
 
 [tool.pixi.tasks]
 install-lite-attention = "git -C ./LiteAttention clean -Xf  && pip install --no-build-isolation -e ./LiteAttention/hopper"
+install-flash-attn = "pip install https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3%2Bcu12torch2.9cxx11abiTRUE-cp312-cp312-linux_x86_64.whl"
 
 [tool.pixi.activation]
 env = { CUDA_HOME = "/usr/local/cuda-12.8", LD_LIBRARY_PATH = "/usr/local/cuda/lib64:$LD_LIBRARY_PATH" }

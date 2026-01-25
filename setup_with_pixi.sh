@@ -2,6 +2,7 @@
 set -e
 
 echo "Installing dependencies..."
+pixi clean
 git submodule update --init --recursive
 pixi install
 
@@ -10,6 +11,13 @@ if pixi run ninja --version && [ $? -eq 0 ]; then
     echo "ninja is working"
 else
     echo "WARNING: ninja is not working correctly, build may be slow"
+fi
+
+echo "Installing flash-attn ..."
+pixi run install-flash-attn
+if ! pixi run python -c "import flash_attn"; then
+    echo "ERROR: flash-attn installation failed"
+    exit 1
 fi
 
 echo "Installing lite-attention..."
