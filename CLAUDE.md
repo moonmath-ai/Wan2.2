@@ -21,21 +21,36 @@ Wan2.2 is an advanced video generation model from Alibaba Wan Team. It supports 
 ```bash
 ./setup_with_pixi.sh
 ```
-This script installs dependencies via pixi, sets up lite-attention, downloads T2V model weights to `~/weights/`, and optionally runs a test generation.
+This script installs dependencies via pixi, sets up lite-attention, and downloads model weights to `~/weights/`.
+
+After setup, test with:
+```bash
+pixi run test-i2v   # Image-to-video test
+pixi run test-t2v   # Text-to-video test
+```
 
 ### Working with Remote Servers
 The code is developed locally but must run on GPU servers:
-- **Code**: `~/code/Wan2.2` and `~/code/LiteAttention` (same structure local and remote)
+- **Code**: `~/code/Wan2.2` (same structure local and remote)
 - **Weights**: `~/weights/` on remote servers
 
 Sync changes and run remotely:
 ```bash
-# Sync a file to remote
-rsync -av wan/text2video.py nebius-144-e00zy1ys26yhk70rry:~/code/Wan2.2/wan/
+# Sync entire directory to remote (excludes .pixi, caches)
+rsync -av --exclude='.pixi' --exclude='__pycache__' --exclude='*.egg-info' \
+    ./ nebius-144-e00zy1ys26yhk70rry:~/code/Wan2.2/
 
-# Run command on remote (pixi needs PATH set)
-ssh nebius-144-e00zy1ys26yhk70rry "export PATH=\$HOME/.pixi/bin:\$PATH && cd ~/code/Wan2.2 && pixi run python generate.py --ckpt_dir ~/weights/Wan2.2-T2V-A14B ..."
+# Sync specific files to remote
+rsync -av pyproject.toml setup_with_pixi.sh nebius-144-e00zy1ys26yhk70rry:~/code/Wan2.2/
+
+# Run setup on remote (pixi needs PATH set)
+ssh nebius-144-e00zy1ys26yhk70rry "export PATH=\$HOME/.pixi/bin:\$PATH && cd ~/code/Wan2.2 && ./setup_with_pixi.sh"
+
+# Run pixi task on remote
+ssh nebius-144-e00zy1ys26yhk70rry "export PATH=\$HOME/.pixi/bin:\$PATH && cd ~/code/Wan2.2 && pixi run test-i2v"
 ```
+
+**Note**: Always set `PATH=$HOME/.pixi/bin:$PATH` when running pixi commands via SSH.
 
 LiteAttention is installed as editable (`pip install -e`), so Python changes take effect immediately. CUDA kernel changes require reinstall: `pixi run install-lite-attention`
 
