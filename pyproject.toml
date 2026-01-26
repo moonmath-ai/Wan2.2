@@ -109,7 +109,8 @@ platforms = ["linux-64"]
 
 [tool.pixi.dependencies]
 python = "3.12.*"
-cuda-toolkit = "*"
+cuda-toolkit = "12.8.*"
+cuda-nvcc = "12.8.*"
 cxx-compiler = "*"
 packaging = "*"
 ninja = "*"
@@ -140,4 +141,4 @@ test-t2v = """python generate.py --task t2v-A14B --size '480*832' \
     --prompt "Two anthropomorphic cats in comfy boxing gear and bright gloves fight intensely on a spotlighted stage." """
 
 [tool.pixi.activation]
-env = { CUDA_HOME = "/usr/local/cuda-12.8", LD_LIBRARY_PATH = "/usr/local/cuda/lib64:$LD_LIBRARY_PATH" }
+env = { TORCH_CUDA_ARCH_LIST = "9.0" }
