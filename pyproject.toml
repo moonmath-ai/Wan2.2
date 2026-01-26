@@ -140,5 +140,7 @@ test-t2v = """python generate.py --task t2v-A14B --size '480*832' \
     --convert_model_dtype --frame_num 41 --sample_steps 20 \
     --prompt "Two anthropomorphic cats in comfy boxing gear and bright gloves fight intensely on a spotlighted stage." """
 
-[tool.pixi.activation]
-env = { TORCH_CUDA_ARCH_LIST = "9.0" }
+[tool.pixi.activation.env]
+# H100 = sm_90. Fixes PyTorch misdetecting arch as "10.1" with CUDA 12.8.
+# Also speeds up CUDA extension builds by compiling only for this arch.
+TORCH_CUDA_ARCH_LIST = "9.0"
