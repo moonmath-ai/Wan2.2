@@ -106,8 +106,23 @@ dev = [
 channels = ["conda-forge", "pytorch", "nvidia"]
 platforms = ["linux-64"]
 
+[tool.pixi.tasks]
+install-lite-attention = "git -C ./LiteAttention clean -Xf  && pip install --no-build-isolation -e ./LiteAttention/hopper"
+test-i2v = """python generate.py --task i2v-A14B --size '480*832' \
+    --ckpt_dir ~/weights/Wan2.2-I2V-A14B --offload_model True \
+    --convert_model_dtype --frame_num 41 --sample_steps 20 \
+    --image examples/i2v_input.JPG \
+    --prompt "Summer beach vacation style, a white cat wearing sunglasses sits on a surfboard." """
+test-t2v = """python generate.py --task t2v-A14B --size '480*832' \
+    --ckpt_dir ~/weights/Wan2.2-T2V-A14B --offload_model True \
+    --convert_model_dtype --frame_num 41 --sample_steps 20 \
+    --prompt "Two anthropomorphic cats in comfy boxing gear and bright gloves fight intensely on a spotlighted stage." """
+
 [tool.pixi.system-requirements]
 cuda = "12"
+
+[tool.pixi.pypi-options]
+no-build-isolation = ["lite-attention"]
 
 [tool.pixi.dependencies]
 python = "3.12.*"
@@ -123,25 +138,10 @@ sam-2 = { git = "https://github.com/facebookresearch/sam2.git", rev = "0e78a1189
 torch = ">=2.9,<2.10"
 flash-attn = { url = "https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3%2Bcu12torch2.9cxx11abiTRUE-cp312-cp312-linux_x86_64.whl" }
 
-[tool.pixi.pypi-options]
-no-build-isolation = ["lite-attention"]
-
-[tool.pixi.environments]
-default = { features = ["animate", "dev", "lite", "s2v"], solve-group = "default" }
-
-[tool.pixi.tasks]
-install-lite-attention = "git -C ./LiteAttention clean -Xf  && pip install --no-build-isolation -e ./LiteAttention/hopper"
-test-i2v = """python generate.py --task i2v-A14B --size '480*832' \
-    --ckpt_dir ~/weights/Wan2.2-I2V-A14B --offload_model True \
-    --convert_model_dtype --frame_num 41 --sample_steps 20 \
-    --image examples/i2v_input.JPG \
-    --prompt "Summer beach vacation style, a white cat wearing sunglasses sits on a surfboard." """
-test-t2v = """python generate.py --task t2v-A14B --size '480*832' \
-    --ckpt_dir ~/weights/Wan2.2-T2V-A14B --offload_model True \
-    --convert_model_dtype --frame_num 41 --sample_steps 20 \
-    --prompt "Two anthropomorphic cats in comfy boxing gear and bright gloves fight intensely on a spotlighted stage." """
-
 [tool.pixi.activation.env]
 # H100 = sm_90. Fixes PyTorch misdetecting arch as "10.1" with CUDA 12.8.
 # Also speeds up CUDA extension builds by compiling only for this arch.
 TORCH_CUDA_ARCH_LIST = "9.0"
+
+[tool.pixi.environments]
+default = { features = ["animate", "dev", "lite", "s2v"], solve-group = "default" }
