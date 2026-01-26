@@ -6,25 +6,12 @@ pixi clean
 git submodule update --init --recursive
 pixi install
 
-echo "Checking ninja..."
-if pixi run ninja --version && [ $? -eq 0 ]; then
-    echo "ninja is working"
-else
-    echo "WARNING: ninja is not working correctly, build may be slow"
-fi
-
-echo "Verifying flash-attn..."
-if ! pixi run python -c "import flash_attn"; then
-    echo "ERROR: flash-attn not working"
-    exit 1
-fi
+pixi run ninja --version || exit 1
+pixi run python -c "import flash_attn" || exit 1
 
 echo "Installing lite-attention..."
 pixi run install-lite-attention
-if ! pixi run python -c "import lite_attention"; then
-    echo "ERROR: lite-attention installation failed"
-    exit 1
-fi
+pixi run python -c "import lite_attention" || exit 1
 
 echo "Downloading model weights..."
 mkdir -p ~/weights
