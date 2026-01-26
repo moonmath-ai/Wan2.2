@@ -108,6 +108,12 @@ platforms = ["linux-64"]
 
 [tool.pixi.tasks]
 install-lite-attention = "git -C ./LiteAttention clean -Xf  && pip install --no-build-isolation -e ./LiteAttention/hopper"
+# TODO: install-lite-attention is a hack. it is better if we would find a way to make pixi install it, but it seems to fail.
+# for the future developer that tries to do it:
+# it seems that lite-attention build dependencies must be conda packages, so they would exist in the env while lite-attention compiles.
+# they include, at least, ninja and pytorch.
+# notice that not all pytorch x cuda versions exists as conda envs for linux. check the conda channels and choose a specific package.
+# you would also need to choose a compatible wheel for flash-attn (see below)
 test-i2v = """python generate.py --task i2v-A14B --size '480*832' \
     --ckpt_dir ~/weights/Wan2.2-I2V-A14B --offload_model True \
     --convert_model_dtype --frame_num 41 --sample_steps 20 \
@@ -136,7 +142,9 @@ wan = { path = ".", editable = true }
 sam-2 = { git = "https://github.com/facebookresearch/sam2.git", rev = "0e78a118995e66bb27d78518c4bd9a3e95b4e266" }
 # torch pinned to 2.9.x when using flash-attn 2.8.3 prebuilt wheel for that version
 torch = ">=2.9,<2.10"
+# flash-attn whl is significantly faster than compiling on the machine. not all wheels available on pypi.
 flash-attn = { url = "https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3%2Bcu12torch2.9cxx11abiTRUE-cp312-cp312-linux_x86_64.whl" }
+# TODO: move the flash-attn and its specific dependencies to environment, so we can switch versions
 
 [tool.pixi.activation.env]
 # H100 = sm_90. Fixes PyTorch misdetecting arch as "10.1" with CUDA 12.8.
