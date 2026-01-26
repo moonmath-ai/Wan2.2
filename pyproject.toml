@@ -111,8 +111,6 @@ python = "3.12.*"
 cuda-toolkit = "12.8.*"
 cuda-nvcc = "12.8.*"
 cxx-compiler = "*"
-packaging = "*"
-ninja = "*"
 pip = "*"
 
 [tool.pixi.pypi-dependencies]
