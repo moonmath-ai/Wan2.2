@@ -36,7 +36,7 @@ The code is developed locally but must run on GPU servers:
 
 Sync changes and run remotely:
 ```bash
-# Sync entire directory to remote (excludes .pixi, caches)
+# Sync entire directory to remote (include .git for submodules like LiteAttention)
 rsync -av --exclude='.pixi' --exclude='__pycache__' --exclude='*.egg-info' \
     ./ nebius-144-e00zy1ys26yhk70rry:~/code/Wan2.2/
 
