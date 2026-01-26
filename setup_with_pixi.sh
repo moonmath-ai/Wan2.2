@@ -1,6 +1,14 @@
 #!/bin/bash
 set -e
 
+# Check for pixi command
+if ! command -v pixi &> /dev/null; then
+    echo "Error: 'pixi' command not found."
+    echo "Please install pixi first: https://pixi.prefix.dev/latest/installation/"
+    echo "and verify that it is in your PATH."
+    exit 1
+fi
+
 echo "Installing dependencies..."
 pixi clean
 git submodule update --init --recursive
