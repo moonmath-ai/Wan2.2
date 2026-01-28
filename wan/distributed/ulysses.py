@@ -32,12 +32,43 @@ def distributed_attention(
         seq_lens:    [B], length of each sequence in batch
         window_size: (left right). If not (-1, -1), apply sliding window local attention.
         lite_attention: LiteAttention instance (optional)
+
+    Notes on the communication pattern:
+      - This function assumes sequence-parallel (a.k.a. "context-parallel") inputs:
+        each rank holds only a shard of the *sequence length* (L // p), but initially
+        still holds all attention heads (N).
+      - The key idea is to compute attention with *global* (full-length) K/V by doing
+        an all-to-all that trades:
+          - heads partition  <->  sequence partition
+        so each rank temporarily holds the full sequence length but only (N // p) heads.
+      - The two `all_to_all` calls are typically the primary communication bottleneck
+        in this attention implementation.
     """
     if not dist.is_initialized():
         raise ValueError("distributed group should be initialized.")
     b = q.shape[0]
 
     # gather q/k/v sequence
+    #
+    # all_to_all(x, scatter_dim, gather_dim) (see `wan/distributed/util.py`) does:
+    #   1) Split x into `world_size` chunks along `scatter_dim`
+    #   2) dist.all_to_all: send chunk i to rank i and receive one chunk from every rank
+    #   3) Concatenate received chunks along `gather_dim`
+    #
+    # Here we call: all_to_all(., scatter_dim=2=heads, gather_dim=1=sequence)
+    #
+    # If inputs are:
+    #   q,k,v: [B, L_local, N, D]   where L_local = L // p and p = world_size
+    # then after all-to-all:
+    #   q,k,v: [B, L,       N/p, D]
+    #
+    # Intuition:
+    #   - We "scatter" (split) the heads across ranks (each rank keeps only N/p heads)
+    #   - We "gather" (concatenate) the sequence shards from every rank (each rank sees full L)
+    #
+    # Communication volume:
+    #   - Each rank sends/receives ~sizeof(q) + sizeof(k) + sizeof(v) worth of data
+    #     across the fabric in this phase (amortized across ranks, but still heavy).
     q = all_to_all(q, scatter_dim=2, gather_dim=1)
     k = all_to_all(k, scatter_dim=2, gather_dim=1)
     v = all_to_all(v, scatter_dim=2, gather_dim=1)
@@ -60,5 +91,13 @@ def distributed_attention(
         )
 
     # scatter q/k/v sequence
+    # Reverse the earlier exchange to return outputs back to sequence-parallel layout.
+    #
+    # If attention output is:
+    #   x: [B, L, N/p, D]
+    # then all_to_all(x, scatter_dim=1=sequence, gather_dim=2=heads) produces:
+    #   x: [B, L/p, N,   D]
+    #
+    # This is the second major communication step (another all-to-all).
     x = all_to_all(x, scatter_dim=1, gather_dim=2)
     return x
