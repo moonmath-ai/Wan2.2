@@ -30,6 +30,13 @@ from .utils.fm_solvers import (
 from .utils.fm_solvers_unipc import FlowUniPCMultistepScheduler
 from .utils.utils import best_output_size, masks_like
 
+# Import lite_attention for optimized attention
+try:
+    from lite_attention import LiteAttention
+    LITE_ATTENTION_AVAILABLE = True
+except ImportError:
+    LITE_ATTENTION_AVAILABLE = False
+
 
 class WanTI2V:
 
@@ -145,10 +152,17 @@ class WanTI2V:
         """
         model.eval().requires_grad_(False)
 
-        if use_sp:
-            for block in model.blocks:
+        for block in model.blocks:
+            if LITE_ATTENTION_AVAILABLE:
+                block.self_attn.lite_attention = LiteAttention(
+                    enable_skipping=True, threshold=lite_attention_threshold)
+            else:
+                block.self_attn.lite_attention = None
+
+            if use_sp:
                 block.self_attn.forward = types.MethodType(
                     sp_attn_forward, block.self_attn)
+        if use_sp:
             model.forward = types.MethodType(sp_dit_forward, model)
 
         if dist.is_initialized():

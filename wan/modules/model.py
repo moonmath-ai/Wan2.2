@@ -129,6 +129,9 @@ class WanSelfAttention(nn.Module):
         self.o = nn.Linear(dim, dim)
         self.norm_q = WanRMSNorm(dim, eps=eps) if qk_norm else nn.Identity()
         self.norm_k = WanRMSNorm(dim, eps=eps) if qk_norm else nn.Identity()
+        # May be populated by task pipelines (T2V/I2V/TI2V) when `lite_attention` is installed.
+        # Always define it so forward() can safely check for it.
+        self.lite_attention = None
 
     def forward(self, x, seq_lens, grid_sizes, freqs):
         r"""

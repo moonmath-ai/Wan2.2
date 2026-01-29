@@ -109,22 +109,87 @@ def flash_attention(
             causal=causal,
             deterministic=deterministic)[0].unflatten(0, (b, lq))
     else:
-        assert FLASH_ATTN_2_AVAILABLE
-        x = flash_attn.flash_attn_varlen_func(
-            q=q,
-            k=k,
-            v=v,
-            cu_seqlens_q=torch.cat([q_lens.new_zeros([1]), q_lens]).cumsum(
-                0, dtype=torch.int32).to(q.device, non_blocking=True),
-            cu_seqlens_k=torch.cat([k_lens.new_zeros([1]), k_lens]).cumsum(
-                0, dtype=torch.int32).to(q.device, non_blocking=True),
-            max_seqlen_q=lq,
-            max_seqlen_k=lk,
-            dropout_p=dropout_p,
-            softmax_scale=softmax_scale,
-            causal=causal,
-            window_size=window_size,
-            deterministic=deterministic).unflatten(0, (b, lq))
+        if not FLASH_ATTN_2_AVAILABLE:
+            # Fallback to PyTorch SDPA when flash-attn isn't installed.
+            # This keeps the project runnable (at the cost of potential perf differences),
+            # and works well when PyTorch can use its own fused SDPA kernels.
+            if window_size != (-1, -1):
+                warnings.warn(
+                    'window_size is not supported without flash-attn; falling back to full attention.'
+                )
+
+            # q is either [B*Lq, Hq, D] (q_lens is None) or [sum(q_lens), Hq, D].
+            # k/v are either [B*Lk, Hk, D] (k_lens is None) or [sum(k_lens), Hk, D].
+            hq, dq = q.size(1), q.size(2)
+            hk, dv = k.size(1), v.size(2)
+
+            # Compute per-sample offsets for varlen k/v (and q if needed)
+            q_offsets = torch.arange(b + 1, device=q.device, dtype=torch.int64) * lq
+            if q_lens is not None:
+                q_offsets = torch.cat(
+                    [q_lens.new_zeros([1], dtype=torch.int64),
+                     q_lens.to(torch.int64).cumsum(0)],
+                    dim=0,
+                )
+            k_offsets = torch.arange(b + 1, device=k.device, dtype=torch.int64) * lk
+            if k_lens is not None:
+                k_offsets = torch.cat(
+                    [k_lens.new_zeros([1], dtype=torch.int64),
+                     k_lens.to(torch.int64).cumsum(0)],
+                    dim=0,
+                )
+
+            # Allocate padded output [B, Lq, Hq, Dv]
+            out = q.new_zeros((b, lq, hq, dv))
+
+            enable_gqa = (hq != hk) and (hq % hk == 0)
+            for i in range(b):
+                qs, qe = int(q_offsets[i].item()), int(q_offsets[i + 1].item())
+                ks, ke = int(k_offsets[i].item()), int(k_offsets[i + 1].item())
+                if qe <= qs or ke <= ks:
+                    continue
+
+                q_i = q[qs:qe]  # [Lqi, Hq, Dq]
+                k_i = k[ks:ke]  # [Lki, Hk, Dq]
+                v_i = v[ks:ke]  # [Lki, Hk, Dv]
+
+                # SDPA expects [B, H, L, D]
+                q_i = q_i.permute(1, 0, 2).unsqueeze(0)
+                k_i = k_i.permute(1, 0, 2).unsqueeze(0)
+                v_i = v_i.permute(1, 0, 2).unsqueeze(0)
+
+                out_i = torch.nn.functional.scaled_dot_product_attention(
+                    q_i,
+                    k_i,
+                    v_i,
+                    attn_mask=None,
+                    dropout_p=dropout_p,
+                    is_causal=causal,
+                    scale=softmax_scale,
+                    enable_gqa=enable_gqa,
+                )
+                out_i = out_i.squeeze(0).permute(1, 0, 2)  # [Lqi, Hq, Dv]
+
+                # Place back into padded output. When q_lens is None, qe-qs == lq.
+                out[i, :out_i.size(0)] = out_i
+
+            x = out
+        else:
+            x = flash_attn.flash_attn_varlen_func(
+                q=q,
+                k=k,
+                v=v,
+                cu_seqlens_q=torch.cat([q_lens.new_zeros([1]), q_lens]).cumsum(
+                    0, dtype=torch.int32).to(q.device, non_blocking=True),
+                cu_seqlens_k=torch.cat([k_lens.new_zeros([1]), k_lens]).cumsum(
+                    0, dtype=torch.int32).to(q.device, non_blocking=True),
+                max_seqlen_q=lq,
+                max_seqlen_k=lk,
+                dropout_p=dropout_p,
+                softmax_scale=softmax_scale,
+                causal=causal,
+                window_size=window_size,
+                deterministic=deterministic).unflatten(0, (b, lq))
 
     # output
     return x.type(out_dtype)
