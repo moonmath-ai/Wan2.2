@@ -49,6 +49,7 @@ class WanT2V:
         t5_cpu=False,
         init_on_cpu=True,
         convert_model_dtype=False,
+        lite_attention_enable_skips=True,
         lite_attention_threshold=-10.0,
     ):
         r"""
@@ -116,6 +117,7 @@ class WanT2V:
             dit_fsdp=dit_fsdp,
             shard_fn=shard_fn,
             convert_model_dtype=convert_model_dtype,
+            lite_attention_enable_skips=lite_attention_enable_skips,
             lite_attention_threshold=lite_attention_threshold)
 
         self.high_noise_model = WanModel.from_pretrained(
@@ -126,6 +128,7 @@ class WanT2V:
             dit_fsdp=dit_fsdp,
             shard_fn=shard_fn,
             convert_model_dtype=convert_model_dtype,
+            lite_attention_enable_skips=lite_attention_enable_skips,
             lite_attention_threshold=lite_attention_threshold)
         if use_sp:
             self.sp_size = get_world_size()
@@ -135,7 +138,7 @@ class WanT2V:
         self.sample_neg_prompt = config.sample_neg_prompt
 
     def _configure_model(self, model, use_sp, dit_fsdp, shard_fn,
-                         convert_model_dtype, lite_attention_threshold=-10.0):
+                         convert_model_dtype, lite_attention_threshold=-10.0, lite_attention_enable_skips=True):
         """
         Configures a model object. This includes setting evaluation modes,
         applying distributed parallel strategy, and handling device placement.
@@ -163,7 +166,8 @@ class WanT2V:
         for block in model.blocks:
             if LITE_ATTENTION_AVAILABLE:
                 block.self_attn.lite_attention = LiteAttention(
-                    enable_skipping=True, threshold=lite_attention_threshold)
+                    enable_skipping=lite_attention_enable_skips,
+                    threshold=lite_attention_threshold)
             else:
                 block.self_attn.lite_attention = None
 

@@ -137,10 +137,10 @@ def _parse_args():
         help="Whether to offload the model to CPU after each model forward, reducing GPU memory usage."
     )
     parser.add_argument(
-        "--ulysses_size",
+        "--sp_size",
         type=int,
         default=1,
-        help="The size of the ulysses parallelism in DiT.")
+        help="The size of the sequence parallelism in DiT.")
     parser.add_argument(
         "--t5_fsdp",
         action="store_true",
@@ -296,6 +296,12 @@ def _parse_args():
     )
     # LiteAttention
     parser.add_argument(
+        "--lite_attention_enable_skips",
+        type=str2bool,
+        default=True,
+        help="Enable LiteAttention skips"
+    )
+    parser.add_argument(
         "--lite_attention_threshold",
         type=float,
         default=-10.0,
@@ -342,11 +348,11 @@ def generate(args):
             args.t5_fsdp or args.dit_fsdp
         ), f"t5_fsdp and dit_fsdp are not supported in non-distributed environments."
         assert not (
-            args.ulysses_size > 1
+            args.sp_size > 1
         ), f"sequence parallel are not supported in non-distributed environments."
 
-    if args.ulysses_size > 1:
-        assert args.ulysses_size == world_size, f"The number of ulysses_size should be equal to the world size."
+    if args.sp_size > 1:
+        assert args.sp_size == world_size, f"The number of sp_size should be equal to the world size."
         init_distributed_group()
 
     if args.use_prompt_extend:
@@ -366,8 +372,8 @@ def generate(args):
                 f"Unsupport prompt_extend_method: {args.prompt_extend_method}")
 
     cfg = WAN_CONFIGS[args.task]
-    if args.ulysses_size > 1:
-        assert cfg.num_heads % args.ulysses_size == 0, f"`{cfg.num_heads=}` cannot be divided evenly by `{args.ulysses_size=}`."
+    if args.sp_size > 1:
+        assert cfg.num_heads % args.sp_size == 0, f"`{cfg.num_heads=}` cannot be divided evenly by `{args.sp_size=}`."
 
     logging.info(f"Generation job args: {args}")
     logging.info(f"Generation model config: {cfg}")
@@ -416,9 +422,10 @@ def generate(args):
             rank=rank,
             t5_fsdp=args.t5_fsdp,
             dit_fsdp=args.dit_fsdp,
-            use_sp=(args.ulysses_size > 1),
+            use_sp=(args.sp_size > 1),
             t5_cpu=args.t5_cpu,
             convert_model_dtype=args.convert_model_dtype,
+            lite_attention_enable_skips=args.lite_attention_enable_skips,
             lite_attention_threshold=args.lite_attention_threshold,
         )
 
@@ -442,9 +449,10 @@ def generate(args):
             rank=rank,
             t5_fsdp=args.t5_fsdp,
             dit_fsdp=args.dit_fsdp,
-            use_sp=(args.ulysses_size > 1),
+            use_sp=(args.sp_size > 1),
             t5_cpu=args.t5_cpu,
             convert_model_dtype=args.convert_model_dtype,
+            lite_attention_enable_skips=args.lite_attention_enable_skips,
             lite_attention_threshold=args.lite_attention_threshold,
         )
 
@@ -470,7 +478,7 @@ def generate(args):
             rank=rank,
             t5_fsdp=args.t5_fsdp,
             dit_fsdp=args.dit_fsdp,
-            use_sp=(args.ulysses_size > 1),
+            use_sp=(args.sp_size > 1),
             t5_cpu=args.t5_cpu,
             convert_model_dtype=args.convert_model_dtype,
             use_relighting_lora=args.use_relighting_lora
@@ -497,7 +505,7 @@ def generate(args):
             rank=rank,
             t5_fsdp=args.t5_fsdp,
             dit_fsdp=args.dit_fsdp,
-            use_sp=(args.ulysses_size > 1),
+            use_sp=(args.sp_size > 1),
             t5_cpu=args.t5_cpu,
             convert_model_dtype=args.convert_model_dtype,
             lite_attention_threshold=args.lite_attention_threshold,
@@ -532,9 +540,10 @@ def generate(args):
             rank=rank,
             t5_fsdp=args.t5_fsdp,
             dit_fsdp=args.dit_fsdp,
-            use_sp=(args.ulysses_size > 1),
+            use_sp=(args.sp_size > 1),
             t5_cpu=args.t5_cpu,
             convert_model_dtype=args.convert_model_dtype,
+            lite_attention_enable_skips=args.lite_attention_enable_skips,
             lite_attention_threshold=args.lite_attention_threshold,
         )
         logging.info("Generating video ...")
@@ -556,7 +565,7 @@ def generate(args):
             formatted_prompt = args.prompt.replace(" ", "_").replace("/",
                                                                      "_")[:50]
             suffix = '.mp4'
-            args.save_file = f"{args.task}_{args.size.replace('*','x') if sys.platform=='win32' else args.size}_{args.ulysses_size}_{formatted_prompt}_{formatted_time}" + suffix
+            args.save_file = f"{args.task}_{args.size.replace('*','x') if sys.platform=='win32' else args.size}_{args.sp_size}_{formatted_prompt}_{formatted_time}" + suffix
 
         logging.info(f"Saving generated video to {args.save_file}")
         save_video(
