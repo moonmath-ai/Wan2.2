@@ -135,12 +135,12 @@ This repository supports the `Wan2.2-T2V-A14B` Text-to-Video model and can simul
 
 - The multi-GPU “Ulysses” path was removed; multi-GPU now uses **FSDP + sequence parallelism** controlled by `--sp_size`.
 - `--ulysses_size` was removed; use `--sp_size` instead.
-- **LiteAttention skip optimization** (`--lite_attention_enable_skips True`) can crash with **sequence parallel** (`--sp_size > 1`) on some setups (e.g., `CUDA illegal memory access`). If that happens, disable it with `--lite_attention_enable_skips False`.
+- **LiteAttention skip optimization** (`--lite_attention_enable_skips True`) can crash with **sequence parallel** (`--sp_size > 1`) when using LiteAttention commit: `50a28556583d91bce8045f97e1431f15486c166e` (e.g., `CUDA illegal memory access`). We make the necessary changes to correct this in commit: `260abf4dd637bddfe59d38b545675dfd04e7747a` of LiteAttention
 
 Example (8 GPUs, recommended stable setting with sequence parallel):
 
 ```sh
-NCCL_NVLS_ENABLE=0 torchrun --nproc_per_node=8 generate.py --task t2v-A14B --size 1280*720 --ckpt_dir ./Wan2.2-T2V-A14B --dit_fsdp --t5_fsdp --sp_size 8 --lite_attention_enable_skips False --prompt "Two anthropomorphic cats in comfy boxing gear and bright gloves fight intensely on a spotlighted stage."
+NCCL_NVLS_ENABLE=0 torchrun --nproc_per_node=8 generate.py --task t2v-A14B --size 832*480 --ckpt_dir ./Wan2.2-T2V-A14B --dit_fsdp --t5_fsdp --sp_size 8 --lite_attention_enable_skips False --prompt "Two anthropomorphic cats in comfy boxing gear and bright gloves fight intensely on a spotlighted stage."
 ```
 
 
