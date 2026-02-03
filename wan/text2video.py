@@ -161,7 +161,7 @@ class WanT2V:
 
         for block in model.blocks:
             if LITE_ATTENTION_AVAILABLE:
-                block.self_attn.lite_attention = LiteAttention(enable_skipping=True, threshold=lite_attention_threshold)
+                block.self_attn.lite_attention = LiteAttention(enable_skipping=True)
             else:
                 block.self_attn.lite_attention = None
 

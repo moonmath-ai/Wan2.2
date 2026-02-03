@@ -50,7 +50,7 @@ class WanI2V:
         t5_cpu=False,
         init_on_cpu=True,
         convert_model_dtype=False,
-        lite_attention_threshold=-10.0,
+        lite_attention_threshold=-10.0,  # TODO: fixme
     ):
         r"""
         Initializes the image-to-video generation model components.
@@ -164,7 +164,7 @@ class WanI2V:
 
         for block in model.blocks:
             if LITE_ATTENTION_AVAILABLE:
-                block.self_attn.lite_attention = LiteAttention(enable_skipping=True, threshold=lite_attention_threshold)
+                block.self_attn.lite_attention = LiteAttention(enable_skipping=True)
             else:
                 block.self_attn.lite_attention = None
 
