@@ -1,5 +1,17 @@
 # Wan2.2
 
+## LiteAttention sequence parallelism integration
+
+- The multi-GPU “Ulysses” path was removed; multi-GPU now uses **FSDP + sequence parallelism** controlled by `--sp_size`.
+- `--ulysses_size` was removed; use `--sp_size` instead.
+- **LiteAttention skip optimization**: use flags `--lite_attention_enable_skips True` and `--lite_attention_threshold -10.0`
+
+Example (8 GPUs, recommended stable setting with sequence parallel):
+
+```sh
+NCCL_NVLS_ENABLE=0 torchrun --nproc_per_node=8 generate.py --task t2v-A14B --size 832*480 --ckpt_dir ./Wan2.2-T2V-A14B --dit_fsdp --t5_fsdp --sp_size 8 --prompt "Two anthropomorphic cats in comfy boxing gear and bright gloves fight intensely on a spotlighted stage." --base_seed 42 --lite_attention_enable_skips True --lite_attention_threshold -10.0
+```
+
 <p align="center">
     <img src="assets/logo.png" width="400"/>
 <p>
@@ -130,19 +142,6 @@ modelscope download Wan-AI/Wan2.2-T2V-A14B --local_dir ./Wan2.2-T2V-A14B
 #### Run Text-to-Video Generation
 
 This repository supports the `Wan2.2-T2V-A14B` Text-to-Video model and can simultaneously support video generation at 480P and 720P resolutions.
-
-##### Notes (recent changes)
-
-- The multi-GPU “Ulysses” path was removed; multi-GPU now uses **FSDP + sequence parallelism** controlled by `--sp_size`.
-- `--ulysses_size` was removed; use `--sp_size` instead.
-- **LiteAttention skip optimization** (`--lite_attention_enable_skips True`) can crash with **sequence parallel** (`--sp_size > 1`) when using LiteAttention commit: `50a28556583d91bce8045f97e1431f15486c166e` (e.g., `CUDA illegal memory access`). We make the necessary changes to correct this in commit: `260abf4dd637bddfe59d38b545675dfd04e7747a` of LiteAttention
-
-Example (8 GPUs, recommended stable setting with sequence parallel):
-
-```sh
-NCCL_NVLS_ENABLE=0 torchrun --nproc_per_node=8 generate.py --task t2v-A14B --size 832*480 --ckpt_dir ./Wan2.2-T2V-A14B --dit_fsdp --t5_fsdp --sp_size 8 --lite_attention_enable_skips False --prompt "Two anthropomorphic cats in comfy boxing gear and bright gloves fight intensely on a spotlighted stage."
-```
-
 
 ##### (1) Without Prompt Extension
 

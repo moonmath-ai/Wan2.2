@@ -372,8 +372,6 @@ def generate(args):
                 f"Unsupport prompt_extend_method: {args.prompt_extend_method}")
 
     cfg = WAN_CONFIGS[args.task]
-    if args.sp_size > 1:
-        assert cfg.num_heads % args.sp_size == 0, f"`{cfg.num_heads=}` cannot be divided evenly by `{args.sp_size=}`."
 
     logging.info(f"Generation job args: {args}")
     logging.info(f"Generation model config: {cfg}")
