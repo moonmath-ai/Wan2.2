@@ -50,7 +50,6 @@ class WanI2V:
         t5_cpu=False,
         init_on_cpu=True,
         convert_model_dtype=False,
-        lite_attention_threshold=-10.0,  # TODO: fixme
     ):
         r"""
         Initializes the image-to-video generation model components.
@@ -77,8 +76,6 @@ class WanI2V:
             convert_model_dtype (`bool`, *optional*, defaults to False):
                 Convert DiT model parameters dtype to 'config.param_dtype'.
                 Only works without FSDP.
-            lite_attention_threshold (`float`):
-                The threshold value for LiteAttention.
         """
         self.device = torch.device(f"cuda:{device_id}")
         self.config = config
@@ -118,7 +115,7 @@ class WanI2V:
             dit_fsdp=dit_fsdp,
             shard_fn=shard_fn,
             convert_model_dtype=convert_model_dtype,
-            lite_attention_threshold=lite_attention_threshold)
+        )
 
         self.high_noise_model = WanModel.from_pretrained(
             checkpoint_dir, subfolder=config.high_noise_checkpoint)
@@ -128,7 +125,7 @@ class WanI2V:
             dit_fsdp=dit_fsdp,
             shard_fn=shard_fn,
             convert_model_dtype=convert_model_dtype,
-            lite_attention_threshold=lite_attention_threshold)
+        )
         if use_sp:
             self.sp_size = get_world_size()
         else:
@@ -137,7 +134,7 @@ class WanI2V:
         self.sample_neg_prompt = config.sample_neg_prompt
 
     def _configure_model(self, model, use_sp, dit_fsdp, shard_fn,
-                         convert_model_dtype, lite_attention_threshold=-10.0):
+                         convert_model_dtype):
         """
         Configures a model object. This includes setting evaluation modes,
         applying distributed parallel strategy, and handling device placement.
@@ -154,8 +151,6 @@ class WanI2V:
             convert_model_dtype (`bool`):
                 Convert DiT model parameters dtype to 'config.param_dtype'.
                 Only works without FSDP.
-            lite_attention_threshold (`float`):
-                The threshold value for LiteAttention.
         Returns:
             torch.nn.Module:
                 The configured model.
