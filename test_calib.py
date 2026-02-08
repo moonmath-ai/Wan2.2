@@ -12,7 +12,7 @@ from PIL import Image
 import wan
 from wan.configs import WAN_CONFIGS
 from wan.utils.utils import save_video
-from lite_attention import ModuleRegistry, LiteAttention, LiteAttentionCalibConfig
+from lite_attention import LiteAttentionRegistry, LiteAttention
 
 generate_kwargs_default = {
     "frame_num": 81,
@@ -68,13 +68,16 @@ def main():
         print(f"Running with {target=}")
         print('='*60)
 
-        registries: list[ModuleRegistry] = []
-
-        # Update target for all LiteAttention modules
-        registry_low = ModuleRegistry(wan_i2v.low_noise_model.named_modules())
-        registry_high = ModuleRegistry(wan_i2v.high_noise_model.named_modules())
-        for registry in [registry_low, registry_high]:
-            registry.set_bulk_config(LiteAttentionCalibConfig(target_error=target))
+        registry_low = LiteAttentionRegistry.from_model(
+            wan_i2v.low_noise_model, mode='calib',
+            filename=output_dir/f"config_{target}_low.toml",
+            calib_config={'target_error': target},
+        )
+        registry_high = LiteAttentionRegistry.from_model(
+            wan_i2v.high_noise_model, mode='calib',
+            filename=output_dir/f"config_{target}_high.toml",
+            calib_config={'target_error': target},
+        )
 
         for model in [wan_i2v.low_noise_model, wan_i2v.high_noise_model]:
             for _name, module in model.named_modules():
@@ -108,8 +111,8 @@ def main():
         output_file = output_dir / f"target_{target}_output.mp4"
         save_video(tensor=video[None], save_file=output_file, fps=16)
 
-        registry_low.config_output.save(output_dir/f"config_{target}_low.toml")
-        registry_high.config_output.save(output_dir/f"config_{target}_high.toml")
+        registry_low.save_if_calib()
+        registry_high.save_if_calib()
 
         # Save first frame as PNG for comparison (no video encoding artifacts)
         for frame in [0, 10, 20]:

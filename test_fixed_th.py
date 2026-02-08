@@ -11,7 +11,7 @@ from PIL import Image
 import wan
 from wan.configs import WAN_CONFIGS
 from wan.utils.utils import save_video
-from lite_attention import ModuleRegistry, LiteAttention, LiteAttentionRunConfig
+from lite_attention import LiteAttentionRegistry, LiteAttention
 
 generate_kwargs_default = {
     "frame_num": 81,
@@ -65,10 +65,12 @@ def main():
     print('='*60)
 
     # Set fixed threshold for all LiteAttention modules
-    registry_low = ModuleRegistry(wan_i2v.low_noise_model.named_modules())
-    registry_high = ModuleRegistry(wan_i2v.high_noise_model.named_modules())
-    for registry in [registry_low, registry_high]:
-        registry.set_bulk_config(LiteAttentionRunConfig(threshold=threshold))
+    registry_low = LiteAttentionRegistry.from_model(
+        wan_i2v.low_noise_model, mode='const', threshold=threshold,
+    )
+    registry_high = LiteAttentionRegistry.from_model(
+        wan_i2v.high_noise_model, mode='const', threshold=threshold,
+    )
 
     for model in [wan_i2v.low_noise_model, wan_i2v.high_noise_model]:
         for _name, module in model.named_modules():
