@@ -20,6 +20,8 @@ from wan.distributed.util import init_distributed_group
 from wan.utils.prompt_extend import DashScopePromptExpander, QwenPromptExpander
 from wan.utils.utils import merge_video_audio, save_video, str2bool
 
+from lite_attention import LiteAttentionRegistry
+
 
 EXAMPLE_PROMPT = {
     "t2v-A14B": {
@@ -419,9 +421,9 @@ def generate(args):
             use_sp=(args.ulysses_size > 1),
             t5_cpu=args.t5_cpu,
             convert_model_dtype=args.convert_model_dtype,
-            lite_attention_threshold=args.lite_attention_threshold,
         )
-
+        registry_low = LiteAttentionRegistry.from_model(wan_t2v.low_noise_model, mode='const', threshold=args.lite_attention_threshold)
+        registry_high = LiteAttentionRegistry.from_model(wan_t2v.high_noise_model, mode='const', threshold=args.lite_attention_threshold)
         logging.info(f"Generating video ...")
         video = wan_t2v.generate(
             args.prompt,
@@ -433,6 +435,8 @@ def generate(args):
             guide_scale=args.sample_guide_scale,
             seed=args.base_seed,
             offload_model=args.offload_model)
+        registry_low.save_if_calib()
+        registry_high.save_if_calib()
     elif "ti2v" in args.task:
         logging.info("Creating WanTI2V pipeline.")
         wan_ti2v = wan.WanTI2V(
@@ -445,9 +449,9 @@ def generate(args):
             use_sp=(args.ulysses_size > 1),
             t5_cpu=args.t5_cpu,
             convert_model_dtype=args.convert_model_dtype,
-            lite_attention_threshold=args.lite_attention_threshold,
         )
-
+        registry_low = LiteAttentionRegistry.from_model(wan_ti2v.low_noise_model, mode='const', threshold=args.LiteAttentionRegistry)
+        registry_high = LiteAttentionRegistry.from_model(wan_ti2v.high_noise_model, mode='const', threshold=args.LiteAttentionRegistry)
         logging.info(f"Generating video ...")
         video = wan_ti2v.generate(
             args.prompt,
@@ -461,6 +465,8 @@ def generate(args):
             guide_scale=args.sample_guide_scale,
             seed=args.base_seed,
             offload_model=args.offload_model)
+        registry_low.save_if_calib()
+        registry_high.save_if_calib()
     elif "animate" in args.task:
         logging.info("Creating Wan-Animate pipeline.")
         wan_animate = wan.WanAnimate(
@@ -500,8 +506,9 @@ def generate(args):
             use_sp=(args.ulysses_size > 1),
             t5_cpu=args.t5_cpu,
             convert_model_dtype=args.convert_model_dtype,
-            lite_attention_threshold=args.lite_attention_threshold,
         )
+        registry_low = LiteAttentionRegistry.from_model(wan_s2v.low_noise_model, mode='const', threshold=args.LiteAttentionRegistry)
+        registry_high = LiteAttentionRegistry.from_model(wan_s2v.high_noise_model, mode='const', threshold=args.LiteAttentionRegistry)
         logging.info(f"Generating video ...")
         video = wan_s2v.generate(
             input_prompt=args.prompt,
@@ -523,6 +530,8 @@ def generate(args):
             offload_model=args.offload_model,
             init_first_frame=args.start_from_ref,
         )
+        registry_low.save_if_calib()
+        registry_high.save_if_calib()
     else:
         logging.info("Creating WanI2V pipeline.")
         wan_i2v = wan.WanI2V(
@@ -535,8 +544,9 @@ def generate(args):
             use_sp=(args.ulysses_size > 1),
             t5_cpu=args.t5_cpu,
             convert_model_dtype=args.convert_model_dtype,
-            lite_attention_threshold=args.lite_attention_threshold,
         )
+        registry_low = LiteAttentionRegistry.from_model(wan_i2v.low_noise_model, mode='const', threshold=args.lite_attention_threshold)
+        registry_high = LiteAttentionRegistry.from_model(wan_i2v.high_noise_model, mode='const', threshold=args.lite_attention_threshold)
         logging.info("Generating video ...")
         video = wan_i2v.generate(
             args.prompt,
@@ -549,6 +559,8 @@ def generate(args):
             guide_scale=args.sample_guide_scale,
             seed=args.base_seed,
             offload_model=args.offload_model)
+        registry_low.save_if_calib()
+        registry_high.save_if_calib()
 
     if rank == 0:
         if args.save_file is None:
