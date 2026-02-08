@@ -49,7 +49,6 @@ def main():
         use_sp=False,
         t5_cpu=False,
         convert_model_dtype=True,
-        lite_attention_threshold=-10.0,  # initial, will change
     )
 
     load_time = time.time() - start_load
