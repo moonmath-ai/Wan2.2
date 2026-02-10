@@ -11,7 +11,12 @@ fi
 
 echo "Installing dependencies..."
 pixi clean
-git submodule update --init --recursive
+git clean -Xf
+if [ -d "LiteAttention/.git" ]; then
+    git -C LiteAttention clean -Xf
+else
+    git submodule update --init --recursive
+fi
 pixi install
 
 pixi run ninja --version || exit 1
