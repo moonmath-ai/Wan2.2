@@ -15,6 +15,7 @@ import torch.distributed as dist
 from PIL import Image
 
 import wan
+from huggingface_hub import snapshot_download
 from wan.configs import MAX_AREA_CONFIGS, SIZE_CONFIGS, SUPPORTED_SIZES, WAN_CONFIGS
 from wan.distributed.util import init_distributed_group
 from wan.utils.prompt_extend import DashScopePromptExpander, QwenPromptExpander
@@ -64,6 +65,8 @@ EXAMPLE_PROMPT = {
 def _validate_args(args):
     # Basic check
     assert args.ckpt_dir is not None, "Please specify the checkpoint directory."
+    if not os.path.isdir(args.ckpt_dir):
+        args.ckpt_dir = snapshot_download(args.ckpt_dir)
     assert args.task in WAN_CONFIGS, f"Unsupport task: {args.task}"
     assert args.task in EXAMPLE_PROMPT, f"Unsupport task: {args.task}"
 

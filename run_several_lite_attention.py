@@ -16,6 +16,7 @@ import subprocess
 import time
 
 import torch
+from huggingface_hub import snapshot_download
 from PIL import Image
 
 import wan
@@ -154,7 +155,7 @@ def main():
     start_load = time.time()
     wan_i2v = wan.WanI2V(
         config=config,
-        checkpoint_dir=Path.home() / "weights/Wan2.2-I2V-A14B",
+        checkpoint_dir=snapshot_download("Wan-AI/Wan2.2-I2V-A14B"),
         device_id=0,
         rank=0,
         t5_fsdp=False,
