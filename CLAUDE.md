@@ -36,8 +36,12 @@ The code is developed locally but must run on GPU servers:
 
 Sync changes and run remotely:
 ```bash
-# Sync entire directory to remote (include .git for submodules like LiteAttention)
+# Sync from main repo (has real .git dir — include it for submodules)
 rsync -av --exclude='.pixi' --exclude='__pycache__' --exclude='*.egg-info' \
+    ./ nebius-144-e00zy1ys26yhk70rry:~/code/Wan2.2/
+
+# Sync from a worktree (has .git pointer file — exclude it, init git on remote separately)
+rsync -av --exclude='.pixi' --exclude='__pycache__' --exclude='*.egg-info' --exclude='.git' \
     ./ nebius-144-e00zy1ys26yhk70rry:~/code/Wan2.2/
 
 # Sync specific files to remote
