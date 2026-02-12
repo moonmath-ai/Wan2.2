@@ -11,6 +11,7 @@ Output structure: output/{YYYYMMDD}_{mode}_{index}/
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 import subprocess
 import time
 
@@ -28,14 +29,14 @@ from lite_attention import LiteAttentionRegistry, LiteAttention
 
 Run = tuple[str, dict[str, Any]]
 RUNS: list[Run] = [
-    'calib', {'calib_config':{'target_error': 0.01, 'metric': 'Cossim'}},
-    'calib', {'calib_config':{'target_error': 0.01, 'metric': 'RMSE'}},
-    'calib', {'calib_config':{'target_error': 0.01, 'metric': 'L1'}},
-    'calib', {'calib_config':{'target_error': 0.05}},
-    'calib', {'calib_config':{'target_error': 0.1}},
-    'const', {'config':{'threshold': -10.0}},
-    'const', {'config':{'threshold': -3.0}},
-    'const', {'config':{'threshold': 0.0}},
+    ('calib', {'calib_config':{'target_error': 0.01, 'metric': 'Cossim'}}),
+    ('calib', {'calib_config':{'target_error': 0.01, 'metric': 'RMSE'}}),
+    ('calib', {'calib_config':{'target_error': 0.01, 'metric': 'L1'}}),
+    ('calib', {'calib_config':{'target_error': 0.05}}),
+    ('calib', {'calib_config':{'target_error': 0.1}}),
+    ('const', {'config':{'threshold': -10.0}}),
+    ('const', {'config':{'threshold': -3.0}}),
+    ('const', {'config':{'threshold': 0.0}}),
 ]
 
 GENERATE_KWARGS = {
@@ -90,21 +91,24 @@ def format_git_info(git_info: dict[str, str]) -> str:
 
 def run_label(run: Run) -> str:
     if run[0] == 'calib':
-        return f"calib(target_error={run[1]['target_error']})"
-    return f"const(threshold={run[1]['threshold']})"
+        cc = run[1]['calib_config']
+        metric = cc.get('metric', 'Cossim')
+        return f"calib(target_error={cc['target_error']}, metric={metric})"
+    return f"const(threshold={run[1]['config']['threshold']})"
 
 
 def setup_registries(wan_i2v, run: Run, output_dir: Path):
     """Configure LiteAttention registries for a single run."""
     mode, config = run
+    calib_label = config['calib_config']['target_error'] if mode == 'calib' else None
     reg_low = LiteAttentionRegistry.from_model(
         wan_i2v.low_noise_model, mode=mode,
-        filename=output_dir / f"config_low_{config['target_error']}.toml" if mode == 'calib' else None,
+        filename=output_dir / f"config_low_{calib_label}.toml" if mode == 'calib' else None,
         **config,
     )
     reg_high = LiteAttentionRegistry.from_model(
         wan_i2v.high_noise_model, mode=mode,
-        filename=output_dir / f"config_high_{config['target_error']}.toml" if mode == 'calib' else None,
+        filename=output_dir / f"config_high_{calib_label}.toml" if mode == 'calib' else None,
         **config,
     )
     return reg_low, reg_high
