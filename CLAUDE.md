@@ -20,7 +20,7 @@ Wan2.2 is an advanced video generation model from Alibaba Wan Team. It supports 
 ```bash
 ./setup_with_pixi.sh
 ```
-This script installs dependencies via pixi, sets up lite-attention, and downloads model weights to `~/weights/`.
+This script installs dependencies via pixi, sets up lite-attention, and downloads model weights to the HF cache.
 
 After setup, test with:
 ```bash
@@ -31,7 +31,7 @@ pixi run test-t2v   # Text-to-video test
 ### Working with Remote Servers
 The code is developed locally but must run on GPU servers:
 - **Code**: `~/code/Wan2.2` (same structure local and remote)
-- **Weights**: `~/weights/` on remote servers
+- **Weights**: HF cache on remote servers
 
 :
 ```bash
@@ -78,7 +78,7 @@ pixi run install-lite-attention  # If lite-attention not installed
 ```bash
 # Single GPU (with pixi) - use 480*832 for faster test runs
 pixi run python generate.py --task t2v-A14B --size 480*832 \
-    --ckpt_dir ~/weights/Wan2.2-T2V-A14B --offload_model True \
+    --ckpt_dir Wan-AI/Wan2.2-T2V-A14B --offload_model True \
     --frame_num 41 --sample_steps 20 --prompt "your prompt"
 
 # Single GPU (without pixi)
