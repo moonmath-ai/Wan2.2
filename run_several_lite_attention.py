@@ -11,6 +11,7 @@ Output structure: output/{YYYYMMDD}_{mode}_{index}/
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+import subprocess
 import time
 
 import torch
@@ -58,6 +59,33 @@ PROMPT = (
 SEED = 42
 MAX_AREA = 480 * 832
 SAVE_FRAMES = [0, 10, 20]
+
+
+def get_git_info() -> dict[str, str]:
+    """Collect git commit hash, summary, dirty status, and diff."""
+    def _run(cmd):
+        return subprocess.run(cmd, capture_output=True, text=True, cwd=Path(__file__).parent).stdout.strip()
+
+    commit_hash = _run(["git", "rev-parse", "HEAD"])
+    commit_short = _run(["git", "rev-parse", "--short", "HEAD"])
+    commit_summary = _run(["git", "log", "-1", "--format=%s"])
+    is_dirty = _run(["git", "status", "--porcelain"]) != ""
+    diff = _run(["git", "diff", "HEAD"]) if is_dirty else ""
+    return {
+        "hash": commit_hash,
+        "short": commit_short,
+        "summary": commit_summary,
+        "dirty": is_dirty,
+        "diff": diff,
+    }
+
+
+def format_git_info(git_info: dict[str, str]) -> str:
+    dirty_marker = " (dirty)" if git_info["dirty"] else ""
+    header = f"Commit: {git_info['short']}{dirty_marker} — {git_info['summary']}"
+    if not git_info["diff"]:
+        return header
+    return f"{header}\n\nUncommitted changes:\n{git_info['diff']}"
 
 
 def run_label(run: Run) -> str:
@@ -110,6 +138,7 @@ def save_frames(video, output_dir, prefix):
 
 def main():
     date_str = datetime.now().strftime("%Y%m%d")
+    git_info = get_git_info()
 
     print(f"Planned runs ({len(RUNS)}):")
     for i, run in enumerate(RUNS):
@@ -202,6 +231,8 @@ def main():
     print(f"\n{'=' * 80}")
     print("SUMMARY")
     print("=" * 80)
+    print(format_git_info(git_info))
+    print()
     print(f"{'#':<4} {'Run':<30} {'Time (s)':<12} {'Tiles Skipped':<24} {'Hash'}")
     print("-" * 80)
     for r in results:
@@ -216,9 +247,11 @@ def main():
     # Write summary to first output dir's parent
     summary_file = output_dir / "summary.txt"
     with summary_file.open("w") as f:
-        f.write(f"LiteAttention Test — {mode_str}\n")
+        f.write(f"LiteAttention Test — {mode_all}\n")
         f.write(f"Date: {date_str}\n")
         f.write(f"{'=' * 80}\n\n")
+        f.write(format_git_info(git_info))
+        f.write("\n\n")
         f.write(f"{'#':<4} {'Run':<30} {'Time (s)':<12} {'Tiles Skipped':<24} {'Hash'}\n")
         f.write(f"{'-' * 80}\n")
         for r in results:
