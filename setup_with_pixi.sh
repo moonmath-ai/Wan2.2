@@ -28,7 +28,7 @@ echo "Installing lite-attention..."
 pixi run install-lite-attention
 pixi run python -c "import lite_attention" || exit 1
 
-echo "Downloading model weights..."
+echo "Downloading model weights to HF cache: ${HF_HOME:-~/.cache/huggingface}/hub"
 pixi run hf download Wan-AI/Wan2.2-T2V-A14B
 pixi run hf download Wan-AI/Wan2.2-I2V-A14B
 
