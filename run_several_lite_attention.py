@@ -47,15 +47,15 @@ RUNS: list[Run] = [
     # 480x832, 21 frames (seq_len=9180) — th=-3 values
     Run('calib', {'calib_config': {'target_error': 0.035, 'metric': 'L1'}},   '480*832', 21),
     Run('calib', {'calib_config': {'target_error': 0.031, 'metric': 'RMSE'}}, '480*832', 21),
-    Run('calib', {'calib_config': {'target_error': 0.0011, 'metric': 'Cossim'}}, '480*832', 21),  # 1 - 0.9989
+    Run('calib', {'calib_config': {'target_error': 0.005, 'metric': 'Cossim'}}, '480*832', 21),
     # 480x832, 41 frames (seq_len=16830) — th=-3 values
     Run('calib', {'calib_config': {'target_error': 0.046, 'metric': 'L1'}},   '480*832', 41),
     Run('calib', {'calib_config': {'target_error': 0.036, 'metric': 'RMSE'}}, '480*832', 41),
-    Run('calib', {'calib_config': {'target_error': 0.0017, 'metric': 'Cossim'}}, '480*832', 41),  # 1 - 0.9983
+    Run('calib', {'calib_config': {'target_error': 0.005, 'metric': 'Cossim'}}, '480*832', 41),
     # 1280x720, 21 frames (seq_len=21528) — th=-3 values
     Run('calib', {'calib_config': {'target_error': 0.062, 'metric': 'L1'}},   '1280*720', 21),
     Run('calib', {'calib_config': {'target_error': 0.049, 'metric': 'RMSE'}}, '1280*720', 21),
-    Run('calib', {'calib_config': {'target_error': 0.0030, 'metric': 'Cossim'}}, '1280*720', 21),  # 1 - 0.9970
+    Run('calib', {'calib_config': {'target_error': 0.01, 'metric': 'Cossim'}}, '1280*720', 21),
 ]
 
 # ---------------------------------------------------------------------------
