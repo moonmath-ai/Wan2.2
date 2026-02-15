@@ -160,7 +160,7 @@ def save_frames(video, output_dir, prefix, frame_indices=None):
 
 
 def main():
-    date_str = datetime.now().strftime("%Y%m%d")
+    date_str = datetime.now().strftime("%Y%m%d_%H%M%S")
     git_info = get_git_info()
 
     print(f"Planned runs ({len(RUNS)}):")
