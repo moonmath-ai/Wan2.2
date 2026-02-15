@@ -134,15 +134,20 @@ def reset_lite_attention(wan_i2v):
 
 
 def collect_skip_stats(wan_i2v):
-    total_skipped = 0
-    total_calls = 0
+    """Compute average skip percentage from LiteAttention skip lists."""
+    percentages = []
     for model in [wan_i2v.low_noise_model, wan_i2v.high_noise_model]:
-        for block in model.blocks:
-            la = block.self_attn.lite_attention
-            if la is not None and hasattr(la, "tiles_skipped"):
-                total_skipped += la.tiles_skipped
-                total_calls += la.tiles_total
-    return total_skipped, total_calls
+        for _name, module in model.named_modules():
+            if isinstance(module, LiteAttention) and module._skip_list is not None:
+                # _skip_list shape: [2, batch, heads, qtiles, ktiles+1]
+                # read buffer is at current _phase index
+                read_list = module._skip_list[module._phase]
+                pct_computed = LiteAttention.calc_percentage(read_list).item()
+                percentages.append(1.0 - pct_computed)  # skip %
+    if percentages:
+        avg_skip = sum(percentages) / len(percentages)
+        return avg_skip, len(percentages)
+    return None, 0
 
 
 def save_frames(video, output_dir, prefix, frame_indices=None):
@@ -227,14 +232,13 @@ def main():
         save_frames(video, output_dir, f"frame_{run_label(run)}", frame_indices)
 
         # Collect stats
-        total_skipped, total_calls = collect_skip_stats(wan_i2v)
-        if total_calls > 0:
-            skip_pct = total_skipped / total_calls
-            skip_info = f"{total_skipped}/{total_calls} ({skip_pct:.1f}%)"
+        avg_skip, n_layers = collect_skip_stats(wan_i2v)
+        if avg_skip is not None:
+            skip_info = f"{avg_skip:.1%} avg ({n_layers} layers)"
             print(f"Tiles skipped: {skip_info}")
         else:
             skip_info = "N/A"
-            print("WARNING: no tile stats recorded")
+            print("WARNING: no skip lists found")
 
         video_hash = hash(video.cpu().numpy().tobytes())
         print(f"Time: {gen_time:.2f}s | Hash: {video_hash}")
