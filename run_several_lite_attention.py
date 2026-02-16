@@ -10,7 +10,9 @@ Each run can specify its own size and frame_num for different resolutions.
 Output structure: output/{YYYYMMDD}_{mode}_{index}/
 """
 
+import io
 import os
+import sys
 # Disable the measurement hack in lite_attention.py
 os.environ.pop("LITE_ATTENTION_MEASURE", None)
 
@@ -42,20 +44,22 @@ class Run:
     frame_num: int = 21
     sampling_steps: int = 10
 
-# Calibration runs targeting ~10% skip rate
+# Huge sweep: 480x832, 41 frames, 40 sampling steps
+_SIZE, _FRAMES, _STEPS = '480*832', 41, 40
+_C = lambda th: Run('const', {'threshold': th}, _SIZE, _FRAMES, _STEPS)
+_L1 = lambda te: Run('calib', {'calib_config': {'target_error': te, 'metric': 'L1'}}, _SIZE, _FRAMES, _STEPS)
+_RMSE = lambda te: Run('calib', {'calib_config': {'target_error': te, 'metric': 'RMSE'}}, _SIZE, _FRAMES, _STEPS)
+_COS = lambda te: Run('calib', {'calib_config': {'target_error': te, 'metric': 'Cossim'}}, _SIZE, _FRAMES, _STEPS)
+
 RUNS: list[Run] = [
-    # 480x832, 21 frames
-    Run('calib', {'calib_config': {'target_error': 0.005, 'metric': 'L1'}},     '480*832', 21),
-    Run('calib', {'calib_config': {'target_error': 0.004, 'metric': 'RMSE'}},   '480*832', 21),
-    Run('calib', {'calib_config': {'target_error': 0.0005, 'metric': 'Cossim'}}, '480*832', 21),
-    # 480x832, 41 frames
-    Run('calib', {'calib_config': {'target_error': 0.005, 'metric': 'L1'}},     '480*832', 41),
-    Run('calib', {'calib_config': {'target_error': 0.004, 'metric': 'RMSE'}},   '480*832', 41),
-    Run('calib', {'calib_config': {'target_error': 0.0005, 'metric': 'Cossim'}}, '480*832', 41),
-    # 1280x720, 21 frames
-    Run('calib', {'calib_config': {'target_error': 0.005, 'metric': 'L1'}},     '1280*720', 21),
-    Run('calib', {'calib_config': {'target_error': 0.004, 'metric': 'RMSE'}},   '1280*720', 21),
-    Run('calib', {'calib_config': {'target_error': 0.0005, 'metric': 'Cossim'}}, '1280*720', 21),
+    # Constant thresholds
+    _C(0), _C(-2), _C(-4), _C(-8), _C(-10),
+    # L1 calibration
+    _L1(0.1), _L1(0.3), _L1(0.1), _L1(0.03), _L1(0.01), _L1(0.003), _L1(0.001),
+    # RMSE calibration
+    _RMSE(0.1), _RMSE(0.3), _RMSE(0.1), _RMSE(0.03), _RMSE(0.01), _RMSE(0.003), _RMSE(0.001),
+    # Cossim calibration
+    _COS(0.1), _COS(0.03), _COS(0.01), _COS(0.003), _COS(0.001),
 ]
 
 # ---------------------------------------------------------------------------
@@ -105,7 +109,7 @@ def run_label(run: Run) -> str:
         cc = run.la_kwargs['calib_config']
         metric = cc.get('metric', 'L1')
         return f"{run.size}x{run.frame_num}f_{run.sampling_steps}s_{metric}={cc['target_error']}"
-    return f"{run.size}x{run.frame_num}f_{run.sampling_steps}s_const={run.la_kwargs['config']['threshold']}"
+    return f"{run.size}x{run.frame_num}f_{run.sampling_steps}s_const={run.la_kwargs['threshold']}"
 
 
 def setup_registries(wan_i2v, run: Run, output_dir: Path):
@@ -148,6 +152,58 @@ def collect_skip_stats(wan_i2v):
         avg_skip = sum(percentages) / len(percentages)
         return avg_skip, len(percentages)
     return None, 0
+
+
+class _Tee:
+    """Write to both the original stream and a capture buffer."""
+    def __init__(self, original, buffer):
+        self._original = original
+        self._buffer = buffer
+
+    def write(self, text):
+        self._original.write(text)
+        self._buffer.write(text)
+
+    def flush(self):
+        self._original.flush()
+
+    def __getattr__(self, name):
+        return getattr(self._original, name)
+
+
+class TeeCapture:
+    """Context manager that captures stdout+stderr while still printing."""
+    def __init__(self):
+        self.buffer = io.StringIO()
+        self._old_stdout = None
+        self._old_stderr = None
+
+    def __enter__(self):
+        self._old_stdout = sys.stdout
+        self._old_stderr = sys.stderr
+        sys.stdout = _Tee(self._old_stdout, self.buffer)
+        sys.stderr = _Tee(self._old_stderr, self.buffer)
+        return self
+
+    def __exit__(self, *args):
+        sys.stdout = self._old_stdout
+        sys.stderr = self._old_stderr
+
+    @property
+    def text(self):
+        return self.buffer.getvalue()
+
+
+def convergence_suffix(captured_text: str) -> str:
+    """Return filename suffix based on calibration convergence warnings."""
+    suffixes = []
+    if "using the high limit" in captured_text:
+        suffixes.append("_or_lower")
+    if "using the low limit" in captured_text:
+        suffixes.append("_or_higher")
+    if "binary search did not converge" in captured_text:
+        suffixes.append("_non_converge")
+    return "".join(suffixes)
 
 
 def save_frames(video, output_dir, prefix, frame_indices=None):
@@ -204,22 +260,27 @@ def main():
         reset_lite_attention(wan_i2v)
 
         start_gen = time.time()
-        video = wan_i2v.generate(
-            input_prompt=PROMPT,
-            img=image,
-            max_area=max_area,
-            shift=5.0,
-            sample_solver="unipc",
-            guide_scale=(3.5, 3.5),
-            seed=SEED,
-            offload_model=False,
-            frame_num=run.frame_num,
-            sampling_steps=run.sampling_steps,
-        )
+        with TeeCapture() as capture:
+            video = wan_i2v.generate(
+                input_prompt=PROMPT,
+                img=image,
+                max_area=max_area,
+                shift=5.0,
+                sample_solver="unipc",
+                guide_scale=(3.5, 3.5),
+                seed=SEED,
+                offload_model=False,
+                frame_num=run.frame_num,
+                sampling_steps=run.sampling_steps,
+            )
         gen_time = time.time() - start_gen
 
+        # Detect calibration convergence issues
+        suffix = convergence_suffix(capture.text) if run.mode == 'calib' else ""
+        label = run_label(run) + suffix
+
         # Save video
-        video_file = output_dir / f"output_{run_label(run)}.mp4"
+        video_file = output_dir / f"output_{label}.mp4"
         save_video(tensor=video[None], save_file=video_file, fps=16)
 
         # Save calib configs if applicable
@@ -229,7 +290,7 @@ def main():
         # Save frames (pick first, middle, last)
         n_frames = video.shape[1]
         frame_indices = [0, n_frames // 2, n_frames - 1]
-        save_frames(video, output_dir, f"frame_{run_label(run)}", frame_indices)
+        save_frames(video, output_dir, f"frame_{label}", frame_indices)
 
         # Collect stats
         avg_skip, n_layers = collect_skip_stats(wan_i2v)
@@ -245,7 +306,7 @@ def main():
 
         results.append({
             "index": i,
-            "label": run_label(run),
+            "label": label,
             "time": gen_time,
             "skip_info": skip_info,
             "hash": video_hash,
@@ -259,10 +320,10 @@ def main():
     print("=" * 80)
     print(format_git_info(git_info))
     print()
-    print(f"{'#':<4} {'Run':<45} {'Time (s)':<12} {'Tiles Skipped':<24} {'Hash'}")
-    print("-" * 95)
+    print(f"{'#':<4} {'Run':<55} {'Time (s)':<12} {'Tiles Skipped':<24} {'Hash'}")
+    print("-" * 105)
     for r in results:
-        print(f"{r['index']:<4} {r['label']:<45} {r['time']:<12.2f} {r['skip_info']:<24} {r['hash']}")
+        print(f"{r['index']:<4} {r['label']:<55} {r['time']:<12.2f} {r['skip_info']:<24} {r['hash']}")
 
     hashes = [r["hash"] for r in results]
     if len(set(hashes)) == 1:
@@ -281,7 +342,7 @@ def main():
         f.write(f"{'#':<4} {'Run':<45} {'Time (s)':<12} {'Tiles Skipped':<24} {'Hash'}\n")
         f.write(f"{'-' * 95}\n")
         for r in results:
-            f.write(f"{r['index']:<4} {r['label']:<45} {r['time']:<12.2f} {r['skip_info']:<24} {r['hash']}\n")
+            f.write(f"{r['index']:<4} {r['label']:<55} {r['time']:<12.2f} {r['skip_info']:<24} {r['hash']}\n")
         f.write("\n")
         if len(set(hashes)) == 1:
             f.write("WARNING: All video hashes identical.\n")
