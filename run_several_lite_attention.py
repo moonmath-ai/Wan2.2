@@ -43,23 +43,23 @@ class Run:
     size: str = "480*832"
     frame_num: int = 21
     sampling_steps: int = 10
+    load_low: str | None = None   # TOML path for load mode (low noise model)
+    load_high: str | None = None  # TOML path for load mode (high noise model)
 
 # Huge sweep: 480x832, 41 frames, 40 sampling steps
 _SIZE, _FRAMES, _STEPS = '480*832', 41, 40
 _C = lambda th: Run('const', {'threshold': th}, _SIZE, _FRAMES, _STEPS)
-_L1 = lambda te: Run('calib', {'calib_config': {'target_error': te, 'metric': 'L1'}}, _SIZE, _FRAMES, _STEPS)
-_RMSE = lambda te: Run('calib', {'calib_config': {'target_error': te, 'metric': 'RMSE'}}, _SIZE, _FRAMES, _STEPS)
-_COS = lambda te: Run('calib', {'calib_config': {'target_error': te, 'metric': 'Cossim'}}, _SIZE, _FRAMES, _STEPS)
+
+_PREV = 'output/20260216_155135_mixed_24'
+_LOAD = lambda name: Run('load', {}, _SIZE, _FRAMES, _STEPS,
+    load_low=f'{_PREV}/config_low_480*832x41f_40s_{name}.toml',
+    load_high=f'{_PREV}/config_high_480*832x41f_40s_{name}.toml')
 
 RUNS: list[Run] = [
-    # Constant thresholds
-    _C(0), _C(-2), _C(-4), _C(-8), _C(-10),
-    # L1 calibration
-    _L1(0.1), _L1(0.3), _L1(0.1), _L1(0.03), _L1(0.01), _L1(0.003), _L1(0.001),
-    # RMSE calibration
-    _RMSE(0.1), _RMSE(0.3), _RMSE(0.1), _RMSE(0.03), _RMSE(0.01), _RMSE(0.003), _RMSE(0.001),
-    # Cossim calibration
-    _COS(0.1), _COS(0.03), _COS(0.01), _COS(0.003), _COS(0.001),
+    # Extra constant thresholds (fill in gaps from previous sweep)
+    _C(-1), _C(-3), _C(-5),
+    # Load calibrated configs from previous sweep
+    _LOAD('L1=0.01'), _LOAD('L1=0.003'),
 ]
 
 # ---------------------------------------------------------------------------
@@ -105,26 +105,41 @@ def format_git_info(git_info: dict[str, str]) -> str:
 
 
 def run_label(run: Run) -> str:
+    prefix = f"{run.size}x{run.frame_num}f_{run.sampling_steps}s"
     if run.mode == 'calib':
         cc = run.la_kwargs['calib_config']
         metric = cc.get('metric', 'L1')
-        return f"{run.size}x{run.frame_num}f_{run.sampling_steps}s_{metric}={cc['target_error']}"
-    return f"{run.size}x{run.frame_num}f_{run.sampling_steps}s_const={run.la_kwargs['threshold']}"
+        return f"{prefix}_{metric}={cc['target_error']}"
+    if run.mode == 'load':
+        # Extract source label from TOML filename: config_low_480*832x41f_40s_L1=0.01.toml -> L1=0.01
+        stem = Path(run.load_low).stem  # e.g. config_low_480*832x41f_40s_L1=0.01
+        # Remove "config_low_" or "config_high_" prefix, then strip the shared size/frames/steps prefix
+        source = stem.removeprefix('config_low_').removeprefix('config_high_')
+        source = source.removeprefix(prefix + '_')
+        return f"{prefix}_load_{source}"
+    return f"{prefix}_const={run.la_kwargs['threshold']}"
 
 
 def setup_registries(wan_i2v, run: Run, output_dir: Path):
     """Configure LiteAttention registries for a single run."""
     label = run_label(run)
-    filename = output_dir / f"config_low_{label}.toml" if run.mode == 'calib' else None
+    if run.mode == 'calib':
+        low_fn = output_dir / f"config_low_{label}.toml"
+        high_fn = output_dir / f"config_high_{label}.toml"
+    elif run.mode == 'load':
+        low_fn = Path(run.load_low)
+        high_fn = Path(run.load_high)
+    else:
+        low_fn = None
+        high_fn = None
     reg_low = LiteAttentionRegistry.from_model(
         wan_i2v.low_noise_model, mode=run.mode,
-        filename=filename,
+        filename=low_fn,
         **run.la_kwargs,
     )
-    filename = output_dir / f"config_high_{label}.toml" if run.mode == 'calib' else None
     reg_high = LiteAttentionRegistry.from_model(
         wan_i2v.high_noise_model, mode=run.mode,
-        filename=filename,
+        filename=high_fn,
         **run.la_kwargs,
     )
     return reg_low, reg_high
