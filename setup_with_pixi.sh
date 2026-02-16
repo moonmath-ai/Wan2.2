@@ -11,11 +11,13 @@ fi
 
 echo "Installing dependencies..."
 pixi clean
-git clean -Xf
-if [ -d "LiteAttention/.git" ]; then
-    git -C LiteAttention clean -Xf
-else
-    git submodule update --init --recursive
+if [ -d ".git" ]; then
+    git clean -Xf
+    if [ -d "LiteAttention/.git" ]; then
+        git -C LiteAttention clean -Xf
+    else
+        git submodule update --init --recursive
+    fi
 fi
 pixi install
 
