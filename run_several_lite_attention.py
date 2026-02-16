@@ -42,20 +42,20 @@ class Run:
     frame_num: int = 21
     sampling_steps: int = 10
 
-# Calibration runs targeting th=-3 equivalent errors from threshold-values.md
+# Calibration runs targeting ~10% skip rate
 RUNS: list[Run] = [
-    # 480x832, 21 frames (seq_len=9180) — th=-3 values
-    Run('calib', {'calib_config': {'target_error': 0.035, 'metric': 'L1'}},   '480*832', 21),
-    Run('calib', {'calib_config': {'target_error': 0.031, 'metric': 'RMSE'}}, '480*832', 21),
-    Run('calib', {'calib_config': {'target_error': 0.005, 'metric': 'Cossim'}}, '480*832', 21),
-    # 480x832, 41 frames (seq_len=16830) — th=-3 values
-    Run('calib', {'calib_config': {'target_error': 0.046, 'metric': 'L1'}},   '480*832', 41),
-    Run('calib', {'calib_config': {'target_error': 0.036, 'metric': 'RMSE'}}, '480*832', 41),
-    Run('calib', {'calib_config': {'target_error': 0.005, 'metric': 'Cossim'}}, '480*832', 41),
-    # 1280x720, 21 frames (seq_len=21528) — th=-3 values
-    Run('calib', {'calib_config': {'target_error': 0.062, 'metric': 'L1'}},   '1280*720', 21),
-    Run('calib', {'calib_config': {'target_error': 0.049, 'metric': 'RMSE'}}, '1280*720', 21),
-    Run('calib', {'calib_config': {'target_error': 0.01, 'metric': 'Cossim'}}, '1280*720', 21),
+    # 480x832, 21 frames
+    Run('calib', {'calib_config': {'target_error': 0.005, 'metric': 'L1'}},     '480*832', 21),
+    Run('calib', {'calib_config': {'target_error': 0.004, 'metric': 'RMSE'}},   '480*832', 21),
+    Run('calib', {'calib_config': {'target_error': 0.0005, 'metric': 'Cossim'}}, '480*832', 21),
+    # 480x832, 41 frames
+    Run('calib', {'calib_config': {'target_error': 0.005, 'metric': 'L1'}},     '480*832', 41),
+    Run('calib', {'calib_config': {'target_error': 0.004, 'metric': 'RMSE'}},   '480*832', 41),
+    Run('calib', {'calib_config': {'target_error': 0.0005, 'metric': 'Cossim'}}, '480*832', 41),
+    # 1280x720, 21 frames
+    Run('calib', {'calib_config': {'target_error': 0.005, 'metric': 'L1'}},     '1280*720', 21),
+    Run('calib', {'calib_config': {'target_error': 0.004, 'metric': 'RMSE'}},   '1280*720', 21),
+    Run('calib', {'calib_config': {'target_error': 0.0005, 'metric': 'Cossim'}}, '1280*720', 21),
 ]
 
 # ---------------------------------------------------------------------------
@@ -104,8 +104,8 @@ def run_label(run: Run) -> str:
     if run.mode == 'calib':
         cc = run.la_kwargs['calib_config']
         metric = cc.get('metric', 'L1')
-        return f"{run.size}x{run.frame_num}f_{metric}={cc['target_error']}"
-    return f"{run.size}x{run.frame_num}f_const={run.la_kwargs['config']['threshold']}"
+        return f"{run.size}x{run.frame_num}f_{run.sampling_steps}s_{metric}={cc['target_error']}"
+    return f"{run.size}x{run.frame_num}f_{run.sampling_steps}s_const={run.la_kwargs['config']['threshold']}"
 
 
 def setup_registries(wan_i2v, run: Run, output_dir: Path):
