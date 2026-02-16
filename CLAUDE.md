@@ -36,27 +36,29 @@ The code is developed locally but must run on GPU servers:
 
 Sync changes and run remotely:
 ```bash
-# Sync from main repo (has real .git dir — include it for submodules)
-rsync -av --exclude='.pixi' --exclude='__pycache__' --exclude='*.egg-info' \
-    ./ nebius-144-e00zy1ys26yhk70rry:~/code/Wan2.2/
-
-# Sync from a worktree (has .git pointer file — exclude it, init git on remote separately)
+# Always exclude .git (works for both main repo and worktrees)
+# Submodules should be updated locally first; setup_with_pixi.sh handles the remote side
 rsync -av --exclude='.pixi' --exclude='__pycache__' --exclude='*.egg-info' --exclude='.git' \
-    ./ nebius-144-e00zy1ys26yhk70rry:~/code/Wan2.2/
-
-# Sync specific files to remote
-rsync -av pyproject.toml setup_with_pixi.sh nebius-144-e00zy1ys26yhk70rry:~/code/Wan2.2/
+    ./ nebius-8-e00xty10vh289wtwn7:~/code/Wan2.2/
 
 # Run setup on remote (pixi needs PATH set)
-ssh nebius-144-e00zy1ys26yhk70rry "export PATH=\$HOME/.pixi/bin:\$PATH && cd ~/code/Wan2.2 && ./setup_with_pixi.sh"
+ssh nebius-8-e00xty10vh289wtwn7 "export PATH=\$HOME/.pixi/bin:\$PATH && cd ~/code/Wan2.2 && ./setup_with_pixi.sh"
 
 # Run pixi task on remote
-ssh nebius-144-e00zy1ys26yhk70rry "export PATH=\$HOME/.pixi/bin:\$PATH && cd ~/code/Wan2.2 && pixi run test-i2v"
+ssh nebius-8-e00xty10vh289wtwn7 "export PATH=\$HOME/.pixi/bin:\$PATH && cd ~/code/Wan2.2 && pixi run test-i2v"
 ```
 
 **Note**: Always set `PATH=$HOME/.pixi/bin:$PATH` when running pixi commands via SSH.
 
 LiteAttention is installed as editable (`pip install -e`), so Python changes take effect immediately. CUDA kernel changes require reinstall: `pixi run install-lite-attention`
+
+### Syncing outputs back from remote
+After a remote run, rsync results back to local `~/outputs/`:
+```bash
+rsync -av nebius-8-e00xty10vh289wtwn7:~/code/Wan2.2/output/<run_dir>/ ~/outputs/<run_dir>/
+# Include the log too:
+rsync -av nebius-8-e00xty10vh289wtwn7:~/code/Wan2.2/run_sweep.log ~/outputs/<run_dir>/
+```
 
 ## Common Commands
 
