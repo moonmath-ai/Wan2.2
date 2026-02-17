@@ -49,17 +49,27 @@ class Run:
 # Huge sweep: 480x832, 41 frames, 40 sampling steps
 _SIZE, _FRAMES, _STEPS = '480*832', 41, 40
 _C = lambda th: Run('const', {'threshold': th}, _SIZE, _FRAMES, _STEPS)
+_L1 = lambda te: Run('calib', {'calib_config': {'target_error': te, 'metric': 'L1'}}, _SIZE, _FRAMES, _STEPS)
+_RMSE = lambda te: Run('calib', {'calib_config': {'target_error': te, 'metric': 'RMSE'}}, _SIZE, _FRAMES, _STEPS)
+_COS = lambda te: Run('calib', {'calib_config': {'target_error': te, 'metric': 'Cossim'}}, _SIZE, _FRAMES, _STEPS)
 
-_PREV = 'output/20260216_155135_mixed_24'
-_LOAD = lambda name: Run('load', {}, _SIZE, _FRAMES, _STEPS,
-    load_low=f'{_PREV}/config_low_480*832x41f_40s_{name}.toml',
-    load_high=f'{_PREV}/config_high_480*832x41f_40s_{name}.toml')
+_LOAD = lambda dir, name: Run('load', {}, _SIZE, _FRAMES, _STEPS,
+    load_low=f'{dir}/config_low_{_SIZE}x{_FRAMES}f_{_STEPS}s_{name}.toml',
+    load_high=f'{dir}/config_high_{_SIZE}x{_FRAMES}f_{_STEPS}s_{name}.toml')
 
 RUNS: list[Run] = [
-    # Extra constant thresholds (fill in gaps from previous sweep)
-    _C(-1), _C(-3), _C(-5),
-    # Load calibrated configs from previous sweep
-    _LOAD('L1=0.01'), _LOAD('L1=0.003'),
+    # Constant thresholds (0 to -10)
+    _C(0), _C(-1), _C(-2), _C(-3), _C(-4), _C(-5), _C(-6), _C(-7), _C(-8), _C(-9), _C(-10),
+    # L1 calibration
+    _L1(0.1), _L1(0.3), _L1(0.03), _L1(0.01), _L1(0.003), _L1(0.001),
+    # RMSE calibration
+    _RMSE(0.1), _RMSE(0.3), _RMSE(0.03), _RMSE(0.01), _RMSE(0.003), _RMSE(0.001),
+    # Cossim calibration
+    _COS(0.1), _COS(0.03), _COS(0.01), _COS(0.003), _COS(0.001),
+    # Load calibrated configs from sweep 1
+    _LOAD('output/20260216_155135_mixed_24', 'L1=0.01'),
+    _LOAD('output/20260216_155135_mixed_24', 'L1=0.003'),
+    _LOAD('output/20260216_155135_mixed_24', 'L1=0.001'),
 ]
 
 # ---------------------------------------------------------------------------
