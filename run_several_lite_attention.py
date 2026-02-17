@@ -112,11 +112,14 @@ def run_label(run: Run) -> str:
         return f"{prefix}_{metric}={cc['target_error']}"
     if run.mode == 'load':
         # Extract source label from TOML filename: config_low_480*832x41f_40s_L1=0.01.toml -> L1=0.01
-        stem = Path(run.load_low).stem  # e.g. config_low_480*832x41f_40s_L1=0.01
+        p = Path(run.load_low)
+        stem = p.stem  # e.g. config_low_480*832x41f_40s_L1=0.01
         # Remove "config_low_" or "config_high_" prefix, then strip the shared size/frames/steps prefix
         source = stem.removeprefix('config_low_').removeprefix('config_high_')
         source = source.removeprefix(prefix + '_')
-        return f"{prefix}_load_{source}"
+        # Extract datetime from parent dir name (e.g. 20260216_155135_mixed_24 -> 20260216_155135)
+        dt = '_'.join(p.parent.name.split('_')[:2])
+        return f"{prefix}_load_{dt}_{source}"
     return f"{prefix}_const={run.la_kwargs['threshold']}"
 
 
