@@ -14,8 +14,7 @@ Wan2.2 is an advanced video generation model from Alibaba Wan Team. It supports 
 ## Development Environment
 
 ### Hardware Requirements
-- Requires 80GB GPU for running the 14B models
-- Available servers: `nebius-8-e00xty10vh289wtwn7`, `nebius-61-e00g00j5ctcrdb3b45`, `nebius-144-e00zy1ys26yhk70rry`
+- Requires 80GB GPU for running the 14B models (H100)
 
 ### Pixi Setup (Recommended)
 ```bash
@@ -34,18 +33,17 @@ The code is developed locally but must run on GPU servers:
 - **Code**: `~/code/Wan2.2` (same structure local and remote)
 - **Weights**: `~/weights/` on remote servers
 
-Sync changes and run remotely:
+:
 ```bash
-# Always exclude .git (works for both main repo and worktrees)
 # Submodules should be updated locally first; setup_with_pixi.sh handles the remote side
-rsync -av --exclude='.pixi' --exclude='__pycache__' --exclude='*.egg-info' --exclude='.git' \
-    ./ nebius-8-e00xty10vh289wtwn7:~/code/Wan2.2/
+# Sync changes
+rsync ...
 
 # Run setup on remote (pixi needs PATH set)
-ssh nebius-8-e00xty10vh289wtwn7 "export PATH=\$HOME/.pixi/bin:\$PATH && cd ~/code/Wan2.2 && ./setup_with_pixi.sh"
+ssh $host "export PATH=\$HOME/.pixi/bin:\$PATH && cd ~/code/Wan2.2 && ./setup_with_pixi.sh"
 
 # Run pixi task on remote
-ssh nebius-8-e00xty10vh289wtwn7 "export PATH=\$HOME/.pixi/bin:\$PATH && cd ~/code/Wan2.2 && pixi run test-i2v"
+ssh $host "export PATH=\$HOME/.pixi/bin:\$PATH && cd ~/code/Wan2.2 && pixi run test-i2v"
 ```
 
 **Note**: Always set `PATH=$HOME/.pixi/bin:$PATH` when running pixi commands via SSH.
@@ -55,9 +53,9 @@ LiteAttention is installed as editable (`pip install -e`), so Python changes tak
 ### Syncing outputs back from remote
 After a remote run, rsync results back to local `~/outputs/`:
 ```bash
-rsync -av nebius-8-e00xty10vh289wtwn7:~/code/Wan2.2/output/<run_dir>/ ~/outputs/<run_dir>/
+rsync -az $host:~/code/Wan2.2/output/<run_dir>/ ~/outputs/Wan2.2/<run_dir>/
 # Include the log too:
-rsync -av nebius-8-e00xty10vh289wtwn7:~/code/Wan2.2/run_sweep.log ~/outputs/<run_dir>/
+rsync -az $host:~/code/Wan2.2/run_sweep.log ~/outputs/Wan2.2/<run_dir>/
 ```
 
 ## Common Commands
