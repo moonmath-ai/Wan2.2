@@ -15,29 +15,57 @@ requires-python = ">=3.10,<4.0"
 dependencies = [
     "torch>=2.4.0",
     "torchvision>=0.19.0",
+    "torchaudio",
     "opencv-python>=4.9.0.80",
     "diffusers>=0.31.0",
-    "transformers>=4.49.0",
+    "transformers>=4.49.0,<=4.51.3",
     "tokenizers>=0.20.3",
     "accelerate>=1.1.1",
     "tqdm",
-    "imageio",
+    "imageio[ffmpeg]",
     "easydict",
     "ftfy",
     "dashscope",
     "imageio-ffmpeg",
-    "flash_attn",
-    "numpy>=1.23.5,<2"
+    # flash_attn installed separately via pixi task (needs prebuilt wheel for torch version match)
+    "numpy>=1.23.5,<2",
 ]
 
 [project.optional-dependencies]
-dev = [
-    "pytest",
-    "black",
-    "flake8",
-    "isort",
-    "mypy",
-    "huggingface-hub[cli]"
+s2v = [
+    "openai-whisper",
+    "HyperPyYAML",
+    "onnxruntime",
+    "inflect",
+    "wetext",
+    "omegaconf",
+    "conformer",
+    "hydra-core",
+    "lightning",
+    "rich",
+    "gdown",
+    "matplotlib",
+    "wget",
+    "pyarrow",
+    "pyworld",
+    "librosa",
+    "decord",
+    "modelscope",
+    "GitPython",
+]
+animate = [
+    "decord",
+    "peft",
+    "onnxruntime",
+    "pandas",
+    "matplotlib",
+    "sam-2",
+    "loguru",
+    "sentencepiece",
+]
+lite = [
+    "ninja",
+    "packaging",
 ]
 
 [project.urls]
@@ -63,4 +91,75 @@ profile = "black"
 [tool.mypy]
 strict = true
 
+[dependency-groups]
+dev = [
+    "pytest",
+    "black",
+    "flake8",
+    "isort",
+    "mypy",
+    "huggingface-hub[cli]",
+]
 
+
+[tool.pixi.workspace]
+channels = ["conda-forge", "pytorch", "nvidia"]
+platforms = ["linux-64"]
+
+[tool.pixi.tasks]
+install-lite-attention = "git -C ./LiteAttention clean -Xf  && pip install --no-build-isolation -e ./LiteAttention/hopper"
+# TODO: install-lite-attention is a hack. it is better if we would find a way to make pixi install it, but it seems to fail.
+# for the future developer that tries to do it:
+# it seems that lite-attention build dependencies must be conda packages, so they would exist in the env while lite-attention compiles.
+# they include, at least, ninja and pytorch.
+# notice that not all pytorch x cuda versions exists as conda envs for linux. check the conda channels and choose a specific package.
+# you would also need to choose a compatible wheel for flash-attn (see below)
+#
+# Test tasks use reduced settings for faster iteration:
+#   - 480*832 (vs 1280*720 in README)
+#   - 41 frames (vs 81 default)
+#   - 20 sample_steps (vs 50 default)
+# For full quality tests, use README settings or test_threshold_comparison.py
+#
+# LiteAttention environment variables:
+#   - LITE_ATTENTION_VERBOSE=TRUE: Print tile skip percentages during generation
+#   - LITE_ATTENTION_DEBUG=TRUE: Allow threshold >= 0 for testing (normally blocked)
+test-i2v = """python generate.py --task i2v-A14B --size '480*832' \
+    --ckpt_dir ~/weights/Wan2.2-I2V-A14B --offload_model True \
+    --convert_model_dtype --frame_num 41 --sample_steps 20 \
+    --image examples/i2v_input.JPG \
+    --prompt "Summer beach vacation style, a white cat wearing sunglasses sits on a surfboard." """
+test-t2v = """python generate.py --task t2v-A14B --size '480*832' \
+    --ckpt_dir ~/weights/Wan2.2-T2V-A14B --offload_model True \
+    --convert_model_dtype --frame_num 41 --sample_steps 20 \
+    --prompt "Two anthropomorphic cats in comfy boxing gear and bright gloves fight intensely on a spotlighted stage." """
+
+[tool.pixi.system-requirements]
+cuda = "12"
+
+[tool.pixi.pypi-options]
+no-build-isolation = ["lite-attention"]
+
+[tool.pixi.dependencies]
+python = "3.12.*"
+cuda-toolkit = "12.8.*"
+cuda-nvcc = "12.8.*"
+cxx-compiler = "*"
+pip = "*"
+
+[tool.pixi.pypi-dependencies]
+wan = { path = ".", editable = true }
+sam-2 = { git = "https://github.com/facebookresearch/sam2.git", rev = "0e78a118995e66bb27d78518c4bd9a3e95b4e266" }
+# torch pinned to 2.9.x when using flash-attn 2.8.3 prebuilt wheel for that version
+torch = ">=2.9,<2.10"
+# flash-attn whl is significantly faster than compiling on the machine. not all wheels available on pypi.
+flash-attn = { url = "https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3%2Bcu12torch2.9cxx11abiTRUE-cp312-cp312-linux_x86_64.whl" }
+# TODO: move the flash-attn and its specific dependencies to environment, so we can switch versions
+
+[tool.pixi.activation.env]
+# H100 = sm_90. Fixes PyTorch misdetecting arch as "10.1" with CUDA 12.8.
+# Also speeds up CUDA extension builds by compiling only for this arch.
+TORCH_CUDA_ARCH_LIST = "9.0"
+
+[tool.pixi.environments]
+default = { features = ["animate", "dev", "lite", "s2v"], solve-group = "default" }

@@ -5,3 +5,9 @@ tmp_examples*
 new_checkpoint*
 batch_test*
 nohup*
+*.egg-info/
+weights/
+/*.mp4
+# pixi environments
+.pixi/*
+!.pixi/config.toml

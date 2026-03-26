@@ -1,0 +1,3 @@
+[submodule "LiteAttention"]
+	path = LiteAttention
+	url = https://github.com/moonmath-ai/LiteAttention/
